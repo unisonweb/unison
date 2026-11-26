@@ -1,0 +1,206 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679142840"><span id="local-6989586621679142841"></span></span><span class="hs-comment">-- Optimized in every build, --fast too: minifying is slow without it</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_GHC -O2 #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- | The kinds of reference the tool finds and rewrites. The first group is</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- AArch64 instruction forms, the second x86-64 forms and jump-table</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- entries, the third fields shared by every target: info table offsets</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- and pointer slots.</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Minify.Ref.html"><span class="hs-identifier">Minify.Ref</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Minify.Ref.html#RefKind"><span class="hs-identifier">RefKind</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Minify.Ref.html#fieldLen"><span class="hs-identifier">fieldLen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Minify.Ref.html#anchored"><span class="hs-identifier">anchored</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">data</span><span> </span><span id="RefKind"><span class="annot"><a href="Minify.Ref.html#RefKind"><span class="hs-identifier hs-var">RefKind</span></a></span></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | adrp + add pair (the pair's address; 8 bytes)</span></span><span>
+</span><span id="line-17"></span><span>    </span><span id="RAdrpAdd"><span class="annot"><a href="Minify.Ref.html#RAdrpAdd"><span class="hs-identifier hs-var">RAdrpAdd</span></a></span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | adrp + ldr pair for a GOT slot</span></span><span>
+</span><span id="line-19"></span><span>    </span><span id="RAdrpLdr"><span class="annot"><a href="Minify.Ref.html#RAdrpLdr"><span class="hs-identifier hs-var">RAdrpLdr</span></a></span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RB"><span class="annot"><a href="Minify.Ref.html#RB"><span class="hs-identifier hs-var">RB</span></a></span></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RBl"><span class="annot"><a href="Minify.Ref.html#RBl"><span class="hs-identifier hs-var">RBl</span></a></span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RBcond"><span class="annot"><a href="Minify.Ref.html#RBcond"><span class="hs-identifier hs-var">RBcond</span></a></span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RCbz"><span class="annot"><a href="Minify.Ref.html#RCbz"><span class="hs-identifier hs-var">RCbz</span></a></span></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RTbz"><span class="annot"><a href="Minify.Ref.html#RTbz"><span class="hs-identifier hs-var">RTbz</span></a></span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- | a 4-byte signed displacement measured from an anchor stored with the</span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-comment">-- reference: x86 branches and calls, RIP-relative operands, and 32-bit</span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-comment">-- jump table entries (anchor: the table)</span><span>
+</span><span id="line-28"></span><span>    </span><span id="RRel32"><span class="annot"><a href="Minify.Ref.html#RRel32"><span class="hs-identifier hs-var">RRel32</span></a></span></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | an 8-byte signed displacement from an anchor: 64-bit jump table entries</span></span><span>
+</span><span id="line-30"></span><span>    </span><span id="RRel64"><span class="annot"><a href="Minify.Ref.html#RRel64"><span class="hs-identifier hs-var">RRel64</span></a></span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | a 4-byte absolute address, sign-extended (x86 in a non-PIE executable)</span></span><span>
+</span><span id="line-32"></span><span>    </span><span id="RAbs32"><span class="annot"><a href="Minify.Ref.html#RAbs32"><span class="hs-identifier hs-var">RAbs32</span></a></span></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | the SRT offset in the last 4 bytes of an info table</span></span><span>
+</span><span id="line-34"></span><span>    </span><span id="RSrt"><span class="annot"><a href="Minify.Ref.html#RSrt"><span class="hs-identifier hs-var">RSrt</span></a></span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | the con_desc offset of a constructor table</span></span><span>
+</span><span id="line-36"></span><span>    </span><span id="RConDesc"><span class="annot"><a href="Minify.Ref.html#RConDesc"><span class="hs-identifier hs-var">RConDesc</span></a></span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RLargeBitmap"><span class="annot"><a href="Minify.Ref.html#RLargeBitmap"><span class="hs-identifier hs-var">RLargeBitmap</span></a></span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RSlowApply"><span class="annot"><a href="Minify.Ref.html#RSlowApply"><span class="hs-identifier hs-var">RSlowApply</span></a></span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RFunBitmap"><span class="annot"><a href="Minify.Ref.html#RFunBitmap"><span class="hs-identifier hs-var">RFunBitmap</span></a></span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | an 8-byte absolute pointer in data</span></span><span>
+</span><span id="line-41"></span><span>    </span><span id="RPointer"><span class="annot"><a href="Minify.Ref.html#RPointer"><span class="hs-identifier hs-var">RPointer</span></a></span></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679142864"><span id="local-6989586621679142869"><span class="annot"><span class="annottext">RefKind -&gt; RefKind -&gt; Bool
+(RefKind -&gt; RefKind -&gt; Bool)
+-&gt; (RefKind -&gt; RefKind -&gt; Bool) -&gt; Eq RefKind
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: RefKind -&gt; RefKind -&gt; Bool
+== :: RefKind -&gt; RefKind -&gt; Bool
+$c/= :: RefKind -&gt; RefKind -&gt; Bool
+/= :: RefKind -&gt; RefKind -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679142875"><span id="local-6989586621679142879"><span id="local-6989586621679142883"><span id="local-6989586621679142887"><span id="local-6989586621679142890"><span id="local-6989586621679142893"><span id="local-6989586621679142896"><span class="annot"><span class="annottext">Eq RefKind
+Eq RefKind =&gt;
+(RefKind -&gt; RefKind -&gt; Ordering)
+-&gt; (RefKind -&gt; RefKind -&gt; Bool)
+-&gt; (RefKind -&gt; RefKind -&gt; Bool)
+-&gt; (RefKind -&gt; RefKind -&gt; Bool)
+-&gt; (RefKind -&gt; RefKind -&gt; Bool)
+-&gt; (RefKind -&gt; RefKind -&gt; RefKind)
+-&gt; (RefKind -&gt; RefKind -&gt; RefKind)
+-&gt; Ord RefKind
+RefKind -&gt; RefKind -&gt; Bool
+RefKind -&gt; RefKind -&gt; Ordering
+RefKind -&gt; RefKind -&gt; RefKind
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: RefKind -&gt; RefKind -&gt; Ordering
+compare :: RefKind -&gt; RefKind -&gt; Ordering
+$c&lt; :: RefKind -&gt; RefKind -&gt; Bool
+&lt; :: RefKind -&gt; RefKind -&gt; Bool
+$c&lt;= :: RefKind -&gt; RefKind -&gt; Bool
+&lt;= :: RefKind -&gt; RefKind -&gt; Bool
+$c&gt; :: RefKind -&gt; RefKind -&gt; Bool
+&gt; :: RefKind -&gt; RefKind -&gt; Bool
+$c&gt;= :: RefKind -&gt; RefKind -&gt; Bool
+&gt;= :: RefKind -&gt; RefKind -&gt; Bool
+$cmax :: RefKind -&gt; RefKind -&gt; RefKind
+max :: RefKind -&gt; RefKind -&gt; RefKind
+$cmin :: RefKind -&gt; RefKind -&gt; RefKind
+min :: RefKind -&gt; RefKind -&gt; RefKind
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679142904"><span id="local-6989586621679142906"><span id="local-6989586621679142910"><span class="annot"><span class="annottext">Int -&gt; RefKind -&gt; ShowS
+[RefKind] -&gt; ShowS
+RefKind -&gt; String
+(Int -&gt; RefKind -&gt; ShowS)
+-&gt; (RefKind -&gt; String) -&gt; ([RefKind] -&gt; ShowS) -&gt; Show RefKind
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; RefKind -&gt; ShowS
+showsPrec :: Int -&gt; RefKind -&gt; ShowS
+$cshow :: RefKind -&gt; String
+show :: RefKind -&gt; String
+$cshowList :: [RefKind] -&gt; ShowS
+showList :: [RefKind] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679142915"><span id="local-6989586621679142924"><span id="local-6989586621679142931"><span id="local-6989586621679142945"><span id="local-6989586621679142948"><span id="local-6989586621679142953"><span id="local-6989586621679142959"><span id="local-6989586621679142963"><span class="annot"><span class="annottext">Int -&gt; RefKind
+RefKind -&gt; Int
+RefKind -&gt; [RefKind]
+RefKind -&gt; RefKind
+RefKind -&gt; RefKind -&gt; [RefKind]
+RefKind -&gt; RefKind -&gt; RefKind -&gt; [RefKind]
+(RefKind -&gt; RefKind)
+-&gt; (RefKind -&gt; RefKind)
+-&gt; (Int -&gt; RefKind)
+-&gt; (RefKind -&gt; Int)
+-&gt; (RefKind -&gt; [RefKind])
+-&gt; (RefKind -&gt; RefKind -&gt; [RefKind])
+-&gt; (RefKind -&gt; RefKind -&gt; [RefKind])
+-&gt; (RefKind -&gt; RefKind -&gt; RefKind -&gt; [RefKind])
+-&gt; Enum RefKind
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: RefKind -&gt; RefKind
+succ :: RefKind -&gt; RefKind
+$cpred :: RefKind -&gt; RefKind
+pred :: RefKind -&gt; RefKind
+$ctoEnum :: Int -&gt; RefKind
+toEnum :: Int -&gt; RefKind
+$cfromEnum :: RefKind -&gt; Int
+fromEnum :: RefKind -&gt; Int
+$cenumFrom :: RefKind -&gt; [RefKind]
+enumFrom :: RefKind -&gt; [RefKind]
+$cenumFromThen :: RefKind -&gt; RefKind -&gt; [RefKind]
+enumFromThen :: RefKind -&gt; RefKind -&gt; [RefKind]
+$cenumFromTo :: RefKind -&gt; RefKind -&gt; [RefKind]
+enumFromTo :: RefKind -&gt; RefKind -&gt; [RefKind]
+$cenumFromThenTo :: RefKind -&gt; RefKind -&gt; RefKind -&gt; [RefKind]
+enumFromThenTo :: RefKind -&gt; RefKind -&gt; RefKind -&gt; [RefKind]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679142971"><span id="local-6989586621679142973"><span class="annot"><span class="annottext">RefKind
+RefKind -&gt; RefKind -&gt; Bounded RefKind
+forall a. a -&gt; a -&gt; Bounded a
+$cminBound :: RefKind
+minBound :: RefKind
+$cmaxBound :: RefKind
+maxBound :: RefKind
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="annot"><span class="hs-comment">-- | Bytes the field occupies.</span></span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Minify.Ref.html#fieldLen"><span class="hs-identifier hs-type">fieldLen</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Minify.Ref.html#RefKind"><span class="hs-identifier hs-type">RefKind</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-46"></span><span id="fieldLen"><span class="annot"><span class="annottext">fieldLen :: RefKind -&gt; Int
+</span><a href="Minify.Ref.html#fieldLen"><span class="hs-identifier hs-var hs-var">fieldLen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><span class="annottext">RefKind
+</span><a href="Minify.Ref.html#RAdrpAdd"><span class="hs-identifier hs-var">RAdrpAdd</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><span class="annottext">RefKind
+</span><a href="Minify.Ref.html#RAdrpLdr"><span class="hs-identifier hs-var">RAdrpLdr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="annot"><span class="annottext">RefKind
+</span><a href="Minify.Ref.html#RB"><span class="hs-identifier hs-var">RB</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-50"></span><span>  </span><span class="annot"><span class="annottext">RefKind
+</span><a href="Minify.Ref.html#RBl"><span class="hs-identifier hs-var">RBl</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="annot"><span class="annottext">RefKind
+</span><a href="Minify.Ref.html#RBcond"><span class="hs-identifier hs-var">RBcond</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><span class="annottext">RefKind
+</span><a href="Minify.Ref.html#RCbz"><span class="hs-identifier hs-var">RCbz</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><span class="annottext">RefKind
+</span><a href="Minify.Ref.html#RTbz"><span class="hs-identifier hs-var">RTbz</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><span class="annottext">RefKind
+</span><a href="Minify.Ref.html#RRel32"><span class="hs-identifier hs-var">RRel32</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><span class="annottext">RefKind
+</span><a href="Minify.Ref.html#RRel64"><span class="hs-identifier hs-var">RRel64</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><span class="annottext">RefKind
+</span><a href="Minify.Ref.html#RAbs32"><span class="hs-identifier hs-var">RAbs32</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><span class="annottext">RefKind
+</span><a href="Minify.Ref.html#RSrt"><span class="hs-identifier hs-var">RSrt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><span class="annottext">RefKind
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- | Whether the reference's anchor (the address the displacement is</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- measured from) is stored with it rather than implied by the kind.</span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Minify.Ref.html#anchored"><span class="hs-identifier hs-type">anchored</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Minify.Ref.html#RefKind"><span class="hs-identifier hs-type">RefKind</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-63"></span><span id="anchored"><span class="annot"><span class="annottext">anchored :: RefKind -&gt; Bool
+</span><a href="Minify.Ref.html#anchored"><span class="hs-identifier hs-var hs-var">anchored</span></a></span></span><span> </span><span id="local-6989586621679142978"><span class="annot"><span class="annottext">RefKind
+</span><a href="#local-6989586621679142978"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RefKind
+</span><a href="#local-6989586621679142978"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">RefKind -&gt; RefKind -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">RefKind
+</span><a href="Minify.Ref.html#RRel32"><span class="hs-identifier hs-var">RRel32</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">RefKind
+</span><a href="#local-6989586621679142978"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">RefKind -&gt; RefKind -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">RefKind
+</span><a href="Minify.Ref.html#RRel64"><span class="hs-identifier hs-var">RRel64</span></a></span><span>
+</span><span id="line-64"></span></pre></body></html>

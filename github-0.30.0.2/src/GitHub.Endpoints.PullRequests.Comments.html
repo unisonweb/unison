@@ -1,0 +1,170 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- The pull request review comments API as described at</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- &lt;http://developer.github.com/v3/pulls/comments/&gt;.</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Comments.html"><span class="hs-identifier">GitHub.Endpoints.PullRequests.Comments</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Comments.html#pullRequestCommentsR"><span class="hs-identifier">pullRequestCommentsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Comments.html#pullRequestCommentR"><span class="hs-identifier">pullRequestCommentR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Comments.html#createPullCommentR"><span class="hs-identifier">createPullCommentR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Comments.html#createPullCommentReplyR"><span class="hs-identifier">createPullCommentReplyR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- | List comments on a pull request.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/pulls/comments/#list-comments-on-a-pull-request&gt;</span><span>
+</span><span id="line-19"></span><span id="local-6989586621679551166"><span class="annot"><a href="GitHub.Endpoints.PullRequests.Comments.html#pullRequestCommentsR"><span class="hs-identifier hs-type">pullRequestCommentsR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueNumber"><span class="hs-identifier hs-type">IssueNumber</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679551166"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#Comment"><span class="hs-identifier hs-type">Comment</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-20"></span><span id="pullRequestCommentsR"><span class="annot"><span class="annottext">pullRequestCommentsR :: forall (k :: RW).
+Name Owner
+-&gt; Name Repo
+-&gt; IssueNumber
+-&gt; FetchCount
+-&gt; Request k (Vector Comment)
+</span><a href="GitHub.Endpoints.PullRequests.Comments.html#pullRequestCommentsR"><span class="hs-identifier hs-var hs-var">pullRequestCommentsR</span></a></span></span><span> </span><span id="local-6989586621679551216"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679551216"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679551217"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679551217"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679551218"><span class="annot"><span class="annottext">IssueNumber
+</span><a href="#local-6989586621679551218"><span class="hs-identifier hs-var">prid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; FetchCount -&gt; Request k (Vector Comment)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679551216"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679551217"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;pulls&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">IssueNumber -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">IssueNumber
+</span><a href="#local-6989586621679551218"><span class="hs-identifier hs-var">prid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;comments&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- | Query a single comment.</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/pulls/comments/#get-a-single-comment&gt;</span><span>
+</span><span id="line-25"></span><span id="local-6989586621679551183"><span class="annot"><a href="GitHub.Endpoints.PullRequests.Comments.html#pullRequestCommentR"><span class="hs-identifier hs-type">pullRequestCommentR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#Comment"><span class="hs-identifier hs-type">Comment</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679551183"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#Comment"><span class="hs-identifier hs-type">Comment</span></a></span></span><span>
+</span><span id="line-26"></span><span id="pullRequestCommentR"><span class="annot"><span class="annottext">pullRequestCommentR :: forall (k :: RW).
+Name Owner -&gt; Name Repo -&gt; Id Comment -&gt; Request k Comment
+</span><a href="GitHub.Endpoints.PullRequests.Comments.html#pullRequestCommentR"><span class="hs-identifier hs-var hs-var">pullRequestCommentR</span></a></span></span><span> </span><span id="local-6989586621679551228"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679551228"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679551229"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679551229"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679551230"><span class="annot"><span class="annottext">Id Comment
+</span><a href="#local-6989586621679551230"><span class="hs-identifier hs-var">cid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request k Comment
+forall (mt :: RW) a. Paths -&gt; QueryString -&gt; Request mt a
+</span><a href="GitHub.Data.Request.html#query"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679551228"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679551229"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;pulls&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;comments&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Comment -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Comment
+</span><a href="#local-6989586621679551230"><span class="hs-identifier hs-var">cid</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- | Create a comment.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/pulls/comments/#create-a-comment&gt;</span><span>
+</span><span id="line-32"></span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Comments.html#createPullCommentR"><span class="hs-identifier hs-type">createPullCommentR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueNumber"><span class="hs-identifier hs-type">IssueNumber</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#Comment"><span class="hs-identifier hs-type">Comment</span></a></span><span>
+</span><span id="line-33"></span><span id="createPullCommentR"><span class="annot"><span class="annottext">createPullCommentR :: Name Owner
+-&gt; Name Repo
+-&gt; IssueNumber
+-&gt; Text
+-&gt; Text
+-&gt; Int
+-&gt; Text
+-&gt; Request 'RW Comment
+</span><a href="GitHub.Endpoints.PullRequests.Comments.html#createPullCommentR"><span class="hs-identifier hs-var hs-var">createPullCommentR</span></a></span></span><span> </span><span id="local-6989586621679551232"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679551232"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679551233"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679551233"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679551234"><span class="annot"><span class="annottext">IssueNumber
+</span><a href="#local-6989586621679551234"><span class="hs-identifier hs-var">iss</span></a></span></span><span> </span><span id="local-6989586621679551235"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679551235"><span class="hs-identifier hs-var">commit</span></a></span></span><span> </span><span id="local-6989586621679551236"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679551236"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679551237"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679551237"><span class="hs-identifier hs-var">position</span></a></span></span><span> </span><span id="local-6989586621679551238"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679551238"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW Comment
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Post"><span class="hs-identifier hs-var">Post</span></a></span><span> </span><span class="annot"><span class="annottext">Paths
+</span><a href="#local-6989586621679551241"><span class="hs-identifier hs-var">parts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NewPullComment -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span> </span><span class="annot"><span class="annottext">(NewPullComment -&gt; ByteString) -&gt; NewPullComment -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Int -&gt; Text -&gt; NewPullComment
+</span><a href="GitHub.Data.Comments.html#NewPullComment"><span class="hs-identifier hs-var">NewPullComment</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679551235"><span class="hs-identifier hs-var">commit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679551236"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679551237"><span class="hs-identifier hs-var">position</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679551238"><span class="hs-identifier hs-var">body</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>    </span><span id="local-6989586621679551241"><span class="annot"><span class="annottext">parts :: Paths
+</span><a href="#local-6989586621679551241"><span class="hs-identifier hs-var hs-var">parts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679551232"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679551233"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;pulls&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">IssueNumber -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">IssueNumber
+</span><a href="#local-6989586621679551234"><span class="hs-identifier hs-var">iss</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;comments&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | Create a comment reply.</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/pulls/comments/#create-a-review-comment-reply&gt;</span><span>
+</span><span id="line-41"></span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Comments.html#createPullCommentReplyR"><span class="hs-identifier hs-type">createPullCommentReplyR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueNumber"><span class="hs-identifier hs-type">IssueNumber</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#Comment"><span class="hs-identifier hs-type">Comment</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#Comment"><span class="hs-identifier hs-type">Comment</span></a></span><span>
+</span><span id="line-42"></span><span id="createPullCommentReplyR"><span class="annot"><span class="annottext">createPullCommentReplyR :: Name Owner
+-&gt; Name Repo
+-&gt; IssueNumber
+-&gt; Id Comment
+-&gt; Text
+-&gt; Request 'RW Comment
+</span><a href="GitHub.Endpoints.PullRequests.Comments.html#createPullCommentReplyR"><span class="hs-identifier hs-var hs-var">createPullCommentReplyR</span></a></span></span><span> </span><span id="local-6989586621679551250"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679551250"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679551251"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679551251"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679551252"><span class="annot"><span class="annottext">IssueNumber
+</span><a href="#local-6989586621679551252"><span class="hs-identifier hs-var">iss</span></a></span></span><span> </span><span id="local-6989586621679551253"><span class="annot"><span class="annottext">Id Comment
+</span><a href="#local-6989586621679551253"><span class="hs-identifier hs-var">cid</span></a></span></span><span> </span><span id="local-6989586621679551254"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679551254"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW Comment
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Post"><span class="hs-identifier hs-var">Post</span></a></span><span> </span><span class="annot"><span class="annottext">Paths
+</span><a href="#local-6989586621679551255"><span class="hs-identifier hs-var">parts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PullCommentReply -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span> </span><span class="annot"><span class="annottext">(PullCommentReply -&gt; ByteString) -&gt; PullCommentReply -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; PullCommentReply
+</span><a href="GitHub.Data.Comments.html#PullCommentReply"><span class="hs-identifier hs-var">PullCommentReply</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679551254"><span class="hs-identifier hs-var">body</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>    </span><span id="local-6989586621679551255"><span class="annot"><span class="annottext">parts :: Paths
+</span><a href="#local-6989586621679551255"><span class="hs-identifier hs-var hs-var">parts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679551250"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679551251"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;pulls&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">IssueNumber -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">IssueNumber
+</span><a href="#local-6989586621679551252"><span class="hs-identifier hs-var">iss</span></a></span><span>
+</span><span id="line-46"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;comments&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Comment -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Comment
+</span><a href="#local-6989586621679551253"><span class="hs-identifier hs-var">cid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;replies&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-47"></span></pre></body></html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Time.ISO8601.html"><span class="hs-identifier">Data.Time.ISO8601</span></a></span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Time.ISO8601.html#formatISO8601"><span class="hs-identifier">formatISO8601</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Time.ISO8601.html#formatISO8601Millis"><span class="hs-identifier">formatISO8601Millis</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Time.ISO8601.html#formatISO8601Micros"><span class="hs-identifier">formatISO8601Micros</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Time.ISO8601.html#formatISO8601Nanos"><span class="hs-identifier">formatISO8601Nanos</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Time.ISO8601.html#formatISO8601Picos"><span class="hs-identifier">formatISO8601Picos</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Time.ISO8601.html#formatISO8601Javascript"><span class="hs-identifier">formatISO8601Javascript</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Time.ISO8601.html#parseISO8601"><span class="hs-identifier">parseISO8601</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Clock</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">UTCTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Format</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">formatTime</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#if MIN_VERSION_time(1,5,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Format</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">defaultTimeLocale</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">parseTimeM</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Time.Format</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">parseTime</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Locale</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">defaultTimeLocale</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&lt;|&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- | Formats a time in ISO 8601, with up to 12 second decimals.</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- This is the `formatTime` format @%FT%T%Q@ == @%%Y-%m-%dT%%H:%M:%S%Q@.</span><span>
+</span><span id="line-27"></span><span class="annot"><a href="Data.Time.ISO8601.html#formatISO8601"><span class="hs-identifier hs-type">formatISO8601</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-28"></span><span id="formatISO8601"><span class="annot"><span class="annottext">formatISO8601 :: UTCTime -&gt; String
+</span><a href="Data.Time.ISO8601.html#formatISO8601"><span class="hs-identifier hs-var hs-var">formatISO8601</span></a></span></span><span> </span><span id="local-6989586621679027197"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679027197"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TimeLocale -&gt; String -&gt; UTCTime -&gt; String
+forall t. FormatTime t =&gt; TimeLocale -&gt; String -&gt; t -&gt; String
+</span><span class="hs-identifier hs-var">formatTime</span></span><span> </span><span class="annot"><span class="annottext">TimeLocale
+</span><span class="hs-identifier hs-var">defaultTimeLocale</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%FT%T%QZ&quot;</span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679027197"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | Pads an ISO 8601 date with trailing zeros, but lacking the trailing Z.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- This is needed because `formatTime` with &quot;%Q&quot; does not create trailing zeros.</span><span>
+</span><span id="line-34"></span><span class="annot"><a href="Data.Time.ISO8601.html#formatPadded"><span class="hs-identifier hs-type">formatPadded</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-35"></span><span id="formatPadded"><span class="annot"><span class="annottext">formatPadded :: UTCTime -&gt; String
+</span><a href="Data.Time.ISO8601.html#formatPadded"><span class="hs-identifier hs-var hs-var">formatPadded</span></a></span></span><span> </span><span id="local-6989586621679027199"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679027199"><span class="hs-identifier hs-var">t</span></a></span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">String -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679027201"><span class="hs-identifier hs-var">str</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">19</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679027201"><span class="hs-identifier hs-var">str</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;.000000000000&quot;</span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679027201"><span class="hs-identifier hs-var">str</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;000000000000&quot;</span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>    </span><span id="local-6989586621679027201"><span class="annot"><span class="annottext">str :: String
+</span><a href="#local-6989586621679027201"><span class="hs-identifier hs-var hs-var">str</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TimeLocale -&gt; String -&gt; UTCTime -&gt; String
+forall t. FormatTime t =&gt; TimeLocale -&gt; String -&gt; t -&gt; String
+</span><span class="hs-identifier hs-var">formatTime</span></span><span> </span><span class="annot"><span class="annottext">TimeLocale
+</span><span class="hs-identifier hs-var">defaultTimeLocale</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%FT%T%Q&quot;</span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679027199"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | Formats a time in ISO 8601 with up to millisecond precision and trailing zeros.</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- The format is precisely:</span><span>
+</span><span id="line-44"></span><span class="hs-comment">--</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- &gt;YYYY-MM-DDTHH:mm:ss.sssZ</span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Data.Time.ISO8601.html#formatISO8601Millis"><span class="hs-identifier hs-type">formatISO8601Millis</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-47"></span><span id="formatISO8601Millis"><span class="annot"><span class="annottext">formatISO8601Millis :: UTCTime -&gt; String
+</span><a href="Data.Time.ISO8601.html#formatISO8601Millis"><span class="hs-identifier hs-var hs-var">formatISO8601Millis</span></a></span></span><span> </span><span id="local-6989586621679027203"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679027203"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; String -&gt; String
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">23</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UTCTime -&gt; String
+</span><a href="Data.Time.ISO8601.html#formatPadded"><span class="hs-identifier hs-var">formatPadded</span></a></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679027203"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Z&quot;</span></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- | Formats a time in ISO 8601 with up to microsecond precision and trailing zeros.</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- The format is precisely:</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- &gt;YYYY-MM-DDTHH:mm:ss.ssssssZ</span><span>
+</span><span id="line-54"></span><span class="annot"><a href="Data.Time.ISO8601.html#formatISO8601Micros"><span class="hs-identifier hs-type">formatISO8601Micros</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-55"></span><span id="formatISO8601Micros"><span class="annot"><span class="annottext">formatISO8601Micros :: UTCTime -&gt; String
+</span><a href="Data.Time.ISO8601.html#formatISO8601Micros"><span class="hs-identifier hs-var hs-var">formatISO8601Micros</span></a></span></span><span> </span><span id="local-6989586621679027205"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679027205"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; String -&gt; String
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">26</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UTCTime -&gt; String
+</span><a href="Data.Time.ISO8601.html#formatPadded"><span class="hs-identifier hs-var">formatPadded</span></a></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679027205"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Z&quot;</span></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- | Formats a time in ISO 8601 with up to nanosecond precision and trailing zeros.</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- The format is precisely:</span><span>
+</span><span id="line-60"></span><span class="hs-comment">--</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- &gt;YYYY-MM-DDTHH:mm:ss.sssssssssZ</span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Data.Time.ISO8601.html#formatISO8601Nanos"><span class="hs-identifier hs-type">formatISO8601Nanos</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-63"></span><span id="formatISO8601Nanos"><span class="annot"><span class="annottext">formatISO8601Nanos :: UTCTime -&gt; String
+</span><a href="Data.Time.ISO8601.html#formatISO8601Nanos"><span class="hs-identifier hs-var hs-var">formatISO8601Nanos</span></a></span></span><span> </span><span id="local-6989586621679027206"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679027206"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; String -&gt; String
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">29</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UTCTime -&gt; String
+</span><a href="Data.Time.ISO8601.html#formatPadded"><span class="hs-identifier hs-var">formatPadded</span></a></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679027206"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Z&quot;</span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- | Formats a time in ISO 8601 with up to picosecond precision and trailing zeros.</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- The format is precisely:</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- &gt;YYYY-MM-DDTHH:mm:ss.ssssssssssssZ</span><span>
+</span><span id="line-69"></span><span class="annot"><a href="Data.Time.ISO8601.html#formatISO8601Picos"><span class="hs-identifier hs-type">formatISO8601Picos</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-70"></span><span id="formatISO8601Picos"><span class="annot"><span class="annottext">formatISO8601Picos :: UTCTime -&gt; String
+</span><a href="Data.Time.ISO8601.html#formatISO8601Picos"><span class="hs-identifier hs-var hs-var">formatISO8601Picos</span></a></span></span><span> </span><span id="local-6989586621679027207"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679027207"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; String -&gt; String
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UTCTime -&gt; String
+</span><a href="Data.Time.ISO8601.html#formatPadded"><span class="hs-identifier hs-var">formatPadded</span></a></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679027207"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Z&quot;</span></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- | Formats a time like JavaScript's @new Date().toISOString()@</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- as specified by Mozilla: &lt;https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString&gt;</span><span>
+</span><span id="line-75"></span><span class="hs-comment">--</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- This is an alias for `formatISO8601Millis`.</span><span>
+</span><span id="line-77"></span><span class="annot"><a href="Data.Time.ISO8601.html#formatISO8601Javascript"><span class="hs-identifier hs-type">formatISO8601Javascript</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-78"></span><span id="formatISO8601Javascript"><span class="annot"><span class="annottext">formatISO8601Javascript :: UTCTime -&gt; String
+</span><a href="Data.Time.ISO8601.html#formatISO8601Javascript"><span class="hs-identifier hs-var hs-var">formatISO8601Javascript</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UTCTime -&gt; String
+</span><a href="Data.Time.ISO8601.html#formatISO8601Millis"><span class="hs-identifier hs-var">formatISO8601Millis</span></a></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- | Parses an ISO 8601 string.</span><span>
+</span><span id="line-82"></span><span class="hs-comment">--</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- Leading and trailing whitespace is accepted. See `parseTimeM` from the</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- `time` package for more details.</span><span>
+</span><span id="line-85"></span><span class="annot"><a href="Data.Time.ISO8601.html#parseISO8601"><span class="hs-identifier hs-type">parseISO8601</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span class="hs-cpp">
+#if MIN_VERSION_time(1,5,0)
+</span><span id="parseISO8601"><span class="annot"><span class="annottext">parseISO8601 :: String -&gt; Maybe UTCTime
+</span><a href="Data.Time.ISO8601.html#parseISO8601"><span class="hs-identifier hs-var hs-var">parseISO8601</span></a></span></span><span> </span><span id="local-6989586621679027208"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679027208"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; TimeLocale -&gt; String -&gt; String -&gt; Maybe UTCTime
+forall (m :: * -&gt; *) t.
+(MonadFail m, ParseTime t) =&gt;
+Bool -&gt; TimeLocale -&gt; String -&gt; String -&gt; m t
+</span><span class="hs-identifier hs-var">parseTimeM</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">TimeLocale
+</span><span class="hs-identifier hs-var">defaultTimeLocale</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%FT%T%QZ&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679027208"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe UTCTime -&gt; Maybe UTCTime -&gt; Maybe UTCTime
+forall a. Maybe a -&gt; Maybe a -&gt; Maybe a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span>
+</span><span id="line-88"></span><span>                 </span><span class="annot"><span class="annottext">Bool -&gt; TimeLocale -&gt; String -&gt; String -&gt; Maybe UTCTime
+forall (m :: * -&gt; *) t.
+(MonadFail m, ParseTime t) =&gt;
+Bool -&gt; TimeLocale -&gt; String -&gt; String -&gt; m t
+</span><span class="hs-identifier hs-var">parseTimeM</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">TimeLocale
+</span><span class="hs-identifier hs-var">defaultTimeLocale</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%FT%T%Q%z&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679027208"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-cpp">
+#else
+</span><span class="hs-identifier">parseISO8601</span><span> </span><span class="hs-identifier">t</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">parseTime</span><span> </span><span class="hs-identifier">defaultTimeLocale</span><span> </span><span class="hs-string">&quot;%FT%T%QZ&quot;</span><span> </span><span class="hs-identifier">t</span><span> </span><span class="hs-operator">&lt;|&gt;</span><span>
+</span><span id="line-91"></span><span>                 </span><span class="hs-identifier">parseTime</span><span> </span><span class="hs-identifier">defaultTimeLocale</span><span> </span><span class="hs-string">&quot;%FT%T%Q%z&quot;</span><span> </span><span class="hs-identifier">t</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

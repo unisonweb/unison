@@ -1,0 +1,248 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-comment">-- |</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Module      : Data.ByteString.Base16</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright   : (c) 2011 MailRank, Inc.</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- License     : BSD</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Maintainer  : Herbert Valerio Riedel &lt;hvr@gnu.org&gt;,</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--               Mikhail Glushenkov &lt;mikhail.glushenkov@gmail.com&gt;,</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--               Emily Pillmore &lt;emilypi@cohomolo.gy&gt;</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Stability   : stable</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- Portability : non-portable</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- RFC 4648-compliant Base16 (Hexadecimal) encoding for 'ByteString' values.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- For a complete Base16 encoding specification, please see &lt;https://tools.ietf.org/html/rfc4648#section-8 RFC-4648 section 8&gt;.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.html"><span class="hs-identifier">Data.ByteString.Base16</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.html#encode"><span class="hs-identifier">encode</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.html#decode"><span class="hs-identifier">decode</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.html#decodeLenient"><span class="hs-identifier">decodeLenient</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.Internal.html"><span class="hs-identifier">Data.ByteString.Base16.Internal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.ByteString.Base16.Internal.html#encodeLoop"><span class="hs-identifier">encodeLoop</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.Internal.html#decodeLoop"><span class="hs-identifier">decodeLoop</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.Internal.html#lenientLoop"><span class="hs-identifier">lenientLoop</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.Internal.html#mkBS"><span class="hs-identifier">mkBS</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.Internal.html#withBS"><span class="hs-identifier">withBS</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Internal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.ForeignPtr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">withForeignPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">plusPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.ForeignPtr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mallocPlainForeignPtrBytes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | Encode a 'ByteString' value in base16 (i.e. hexadecimal).</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- Encoded values will always have a length that is a multiple of 2.</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- &gt; encode &quot;foo&quot;  == &quot;666f6f&quot;</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span class="annot"><a href="Data.ByteString.Base16.html#encode"><span class="hs-identifier hs-type">encode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-44"></span><span id="encode"><span class="annot"><span class="annottext">encode :: ByteString -&gt; ByteString
+</span><a href="Data.ByteString.Base16.html#encode"><span class="hs-identifier hs-var hs-var">encode</span></a></span></span><span> </span><span id="local-6989586621679031935"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679031935"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; (Ptr Word8 -&gt; Int -&gt; IO ByteString) -&gt; ByteString
+forall a. ByteString -&gt; (Ptr Word8 -&gt; Int -&gt; IO a) -&gt; a
+</span><a href="Data.ByteString.Base16.Internal.html#withBS"><span class="hs-identifier hs-var">withBS</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679031935"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; IO ByteString
+</span><a href="#local-6989586621679031936"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>    </span><span id="local-6989586621679031936"><span class="annot"><span class="annottext">go :: Ptr Word8 -&gt; Int -&gt; IO ByteString
+</span><a href="#local-6989586621679031936"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679031951"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679031951"><span class="hs-identifier hs-var">sptr</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679031952"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679031952"><span class="hs-identifier hs-var">slen</span></a></span></span><span>
+</span><span id="line-47"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679031952"><span class="hs-identifier hs-var">slen</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-48"></span><span>        </span><span class="annot"><span class="annottext">[Char] -&gt; IO ByteString
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Data.ByteString.Base16.encode: input too long&quot;</span></span><span>
+</span><span id="line-49"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-50"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679031959"><span class="annot"><span class="annottext">l :: Int
+</span><a href="#local-6989586621679031959"><span class="hs-identifier hs-var hs-var hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679031952"><span class="hs-identifier hs-var">slen</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-51"></span><span>          </span><span id="local-6989586621679031961"><span class="annot"><a href="#local-6989586621679031961"><span class="hs-identifier hs-var">dfp</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO (ForeignPtr Word8)
+forall a. Int -&gt; IO (ForeignPtr a)
+</span><span class="hs-identifier hs-var">mallocPlainForeignPtrBytes</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679031959"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-52"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">withForeignPtr</span></span><span> </span><span class="annot"><a href="#local-6989586621679031961"><span class="hs-identifier hs-type">dfp</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679031962"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679031962"><span class="hs-identifier hs-var">dptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-53"></span><span>            </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Ptr Word8 -&gt; Ptr Word8 -&gt; IO ()
+</span><a href="Data.ByteString.Base16.Internal.html#encodeLoop"><span class="hs-identifier hs-var">encodeLoop</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679031962"><span class="hs-identifier hs-var">dptr</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679031951"><span class="hs-identifier hs-var">sptr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679031951"><span class="hs-identifier hs-var">sptr</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; Ptr Word8
+forall a b. Ptr a -&gt; Int -&gt; Ptr b
+</span><span class="hs-operator hs-var">`plusPtr`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679031952"><span class="hs-identifier hs-var">slen</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Data.ByteString.Base16.Internal.html#mkBS"><span class="hs-identifier hs-type">mkBS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679031961"><span class="hs-identifier hs-type">dfp</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679031959"><span class="hs-identifier hs-type">l</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- | Decode a base16-encoded 'ByteString' value.</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- If errors are encountered during the decoding process,</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- then an error message and character offset will be returned in</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- the @Left@ clause of the coproduct.</span><span>
+</span><span id="line-60"></span><span class="hs-comment">--</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-62"></span><span class="hs-comment">--</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- &gt; decode &quot;666f6f&quot;  == Right &quot;foo&quot;</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- &gt; decode &quot;66quux&quot;  == Left &quot;invalid character at offset: 2&quot;</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- &gt; decode &quot;666quux&quot; == Left &quot;invalid character at offset: 3&quot;</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- @since 1.0.0.0</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--</span><span>
+</span><span id="line-69"></span><span class="annot"><a href="Data.ByteString.Base16.html#decode"><span class="hs-identifier hs-type">decode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-70"></span><span id="decode"><span class="annot"><span class="annottext">decode :: ByteString -&gt; Either [Char] ByteString
+</span><a href="Data.ByteString.Base16.html#decode"><span class="hs-identifier hs-var hs-var">decode</span></a></span></span><span> </span><span id="local-6989586621679031963"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679031963"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+-&gt; (Ptr Word8 -&gt; Int -&gt; IO (Either [Char] ByteString))
+-&gt; Either [Char] ByteString
+forall a. ByteString -&gt; (Ptr Word8 -&gt; Int -&gt; IO a) -&gt; a
+</span><a href="Data.ByteString.Base16.Internal.html#withBS"><span class="hs-identifier hs-var">withBS</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679031963"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; IO (Either [Char] ByteString)
+</span><a href="#local-6989586621679031964"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-72"></span><span>    </span><span id="local-6989586621679031964"><span class="annot"><span class="annottext">go :: Ptr Word8 -&gt; Int -&gt; IO (Either [Char] ByteString)
+</span><a href="#local-6989586621679031964"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679031973"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679031973"><span class="hs-identifier hs-var">sptr</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679031974"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679031974"><span class="hs-identifier hs-var">slen</span></a></span></span><span>
+</span><span id="line-73"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679031974"><span class="hs-identifier hs-var">slen</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Either [Char] ByteString -&gt; IO (Either [Char] ByteString)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either [Char] ByteString -&gt; IO (Either [Char] ByteString))
+-&gt; Either [Char] ByteString -&gt; IO (Either [Char] ByteString)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Either [Char] ByteString
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">empty</span></span><span>
+</span><span id="line-74"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679031975"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Either [Char] ByteString -&gt; IO (Either [Char] ByteString)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either [Char] ByteString -&gt; IO (Either [Char] ByteString))
+-&gt; Either [Char] ByteString -&gt; IO (Either [Char] ByteString)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Either [Char] ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;invalid bytestring size&quot;</span></span><span>
+</span><span id="line-75"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-76"></span><span>        </span><span id="local-6989586621679031977"><span class="annot"><a href="#local-6989586621679031977"><span class="hs-identifier hs-var">dfp</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO (ForeignPtr Word8)
+forall a. Int -&gt; IO (ForeignPtr a)
+</span><span class="hs-identifier hs-var">mallocPlainForeignPtrBytes</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679031978"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-77"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">withForeignPtr</span></span><span> </span><span class="annot"><a href="#local-6989586621679031977"><span class="hs-identifier hs-type">dfp</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679031979"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679031979"><span class="hs-identifier hs-var">dptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-78"></span><span>          </span><span class="annot"><span class="annottext">ForeignPtr Word8
+-&gt; Ptr Word8
+-&gt; Ptr Word8
+-&gt; Ptr Word8
+-&gt; IO (Either [Char] ByteString)
+</span><a href="Data.ByteString.Base16.Internal.html#decodeLoop"><span class="hs-identifier hs-var">decodeLoop</span></a></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679031977"><span class="hs-identifier hs-var">dfp</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679031979"><span class="hs-identifier hs-var">dptr</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679031973"><span class="hs-identifier hs-var">sptr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; Ptr Word8
+forall a b. Ptr a -&gt; Int -&gt; Ptr b
+</span><span class="hs-identifier hs-var">plusPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679031973"><span class="hs-identifier hs-var">sptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679031974"><span class="hs-identifier hs-var">slen</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-80"></span><span>        </span><span class="hs-glyph">!</span><span id="local-6989586621679031978"><span class="annot"><span class="annottext">q :: Int
+</span><a href="#local-6989586621679031978"><span class="hs-identifier hs-var hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679031974"><span class="hs-identifier hs-var">slen</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`quot`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-81"></span><span>        </span><span class="hs-glyph">!</span><span id="local-6989586621679031975"><span class="annot"><span class="annottext">r :: Int
+</span><a href="#local-6989586621679031975"><span class="hs-identifier hs-var hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679031974"><span class="hs-identifier hs-var">slen</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`rem`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- | Decode a Base16-encoded 'ByteString' value leniently, using a</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- strategy that never fails.</span><span>
+</span><span id="line-85"></span><span class="hs-comment">--</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- /N.B./: this is not RFC 4648-compliant</span><span>
+</span><span id="line-87"></span><span class="hs-comment">--</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-89"></span><span class="hs-comment">--</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- &gt; decodeLenient &quot;666f6f&quot;  == &quot;foo&quot;</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- &gt; decodeLenient &quot;66quuxx&quot; == &quot;f&quot;</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- &gt; decodeLenient &quot;666quux&quot; == &quot;f&quot;</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- &gt; decodeLenient &quot;666fquu&quot; -- &quot;fo&quot;</span><span>
+</span><span id="line-94"></span><span class="hs-comment">--</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- @since 1.0.0.0</span><span>
+</span><span id="line-96"></span><span class="hs-comment">--</span><span>
+</span><span id="line-97"></span><span class="annot"><a href="Data.ByteString.Base16.html#decodeLenient"><span class="hs-identifier hs-type">decodeLenient</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-98"></span><span id="decodeLenient"><span class="annot"><span class="annottext">decodeLenient :: ByteString -&gt; ByteString
+</span><a href="Data.ByteString.Base16.html#decodeLenient"><span class="hs-identifier hs-var hs-var">decodeLenient</span></a></span></span><span> </span><span id="local-6989586621679031998"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679031998"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; (Ptr Word8 -&gt; Int -&gt; IO ByteString) -&gt; ByteString
+forall a. ByteString -&gt; (Ptr Word8 -&gt; Int -&gt; IO a) -&gt; a
+</span><a href="Data.ByteString.Base16.Internal.html#withBS"><span class="hs-identifier hs-var">withBS</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679031998"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; IO ByteString
+</span><a href="#local-6989586621679031999"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>    </span><span id="local-6989586621679031999"><span class="annot"><span class="annottext">go :: Ptr Word8 -&gt; Int -&gt; IO ByteString
+</span><a href="#local-6989586621679031999"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679032006"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679032006"><span class="hs-identifier hs-var">sptr</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679032007"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032007"><span class="hs-identifier hs-var">slen</span></a></span></span><span>
+</span><span id="line-101"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032007"><span class="hs-identifier hs-var">slen</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO ByteString
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">empty</span></span><span>
+</span><span id="line-102"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-103"></span><span>        </span><span id="local-6989586621679032008"><span class="annot"><a href="#local-6989586621679032008"><span class="hs-identifier hs-var">dfp</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO (ForeignPtr Word8)
+forall a. Int -&gt; IO (ForeignPtr a)
+</span><span class="hs-identifier hs-var">mallocPlainForeignPtrBytes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032009"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">withForeignPtr</span></span><span> </span><span class="annot"><a href="#local-6989586621679032008"><span class="hs-identifier hs-type">dfp</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679032010"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679032010"><span class="hs-identifier hs-var">dptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-105"></span><span>          </span><span class="annot"><span class="annottext">ForeignPtr Word8
+-&gt; Ptr Word8 -&gt; Ptr Word8 -&gt; Ptr Word8 -&gt; IO ByteString
+</span><a href="Data.ByteString.Base16.Internal.html#lenientLoop"><span class="hs-identifier hs-var">lenientLoop</span></a></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679032008"><span class="hs-identifier hs-var">dfp</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679032010"><span class="hs-identifier hs-var">dptr</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679032006"><span class="hs-identifier hs-var">sptr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; Ptr Word8
+forall a b. Ptr a -&gt; Int -&gt; Ptr b
+</span><span class="hs-identifier hs-var">plusPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679032006"><span class="hs-identifier hs-var">sptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032007"><span class="hs-identifier hs-var">slen</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-107"></span><span>        </span><span class="hs-glyph">!</span><span id="local-6989586621679032009"><span class="annot"><span class="annottext">q :: Int
+</span><a href="#local-6989586621679032009"><span class="hs-identifier hs-var hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032007"><span class="hs-identifier hs-var">slen</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`quot`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-108"></span></pre></body></html>

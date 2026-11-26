@@ -1,0 +1,275 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{- ORMOLU_DISABLE -}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">{- HLINT ignore -}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChanges.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChanges</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookCell.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.NotebookCell</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChangeStructure.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChangeStructure</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentCellContentChanges.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.NotebookDocumentCellContentChanges</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="annot"><span class="hs-comment">{-|
+Cell changes to a notebook document.
+
+@since 3.18.0
+@proposed
+-}</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">data</span><span> </span><span id="NotebookDocumentCellChanges"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChanges.html#NotebookDocumentCellChanges"><span class="hs-identifier hs-var">NotebookDocumentCellChanges</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NotebookDocumentCellChanges"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChanges.html#NotebookDocumentCellChanges"><span class="hs-identifier hs-var">NotebookDocumentCellChanges</span></a></span></span><span> </span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  Changes to the cell structure to add or
+  remove cells.
+  -}</span></span><span>
+</span><span id="line-34"></span><span>  </span><span id="_structure"><span class="annot"><span class="annottext">NotebookDocumentCellChanges
+-&gt; Maybe NotebookDocumentCellChangeStructure
+</span><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChanges.html#_structure"><span class="hs-identifier hs-var hs-var">_structure</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChangeStructure.html#NotebookDocumentCellChangeStructure"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChangeStructure.NotebookDocumentCellChangeStructure</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  Changes to notebook cells properties like its
+  kind, execution summary or metadata.
+  -}</span></span><span>
+</span><span id="line-39"></span><span>  </span><span id="_data_"><span class="annot"><span class="annottext">NotebookDocumentCellChanges -&gt; Maybe [NotebookCell]
+</span><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChanges.html#_data_"><span class="hs-identifier hs-var hs-var">_data_</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookCell.html#NotebookCell"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.NotebookCell.NotebookCell</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  Changes to the text content of notebook cells.
+  -}</span></span><span>
+</span><span id="line-43"></span><span>  </span><span id="_textContent"><span class="annot"><span class="annottext">NotebookDocumentCellChanges
+-&gt; Maybe [NotebookDocumentCellContentChanges]
+</span><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChanges.html#_textContent"><span class="hs-identifier hs-var hs-var">_textContent</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentCellContentChanges.html#NotebookDocumentCellContentChanges"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.NotebookDocumentCellContentChanges.NotebookDocumentCellContentChanges</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682559578"><span id="local-6989586621682559589"><span id="local-6989586621682559593"><span class="annot"><span class="annottext">Int -&gt; NotebookDocumentCellChanges -&gt; ShowS
+[NotebookDocumentCellChanges] -&gt; ShowS
+NotebookDocumentCellChanges -&gt; String
+(Int -&gt; NotebookDocumentCellChanges -&gt; ShowS)
+-&gt; (NotebookDocumentCellChanges -&gt; String)
+-&gt; ([NotebookDocumentCellChanges] -&gt; ShowS)
+-&gt; Show NotebookDocumentCellChanges
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; NotebookDocumentCellChanges -&gt; ShowS
+showsPrec :: Int -&gt; NotebookDocumentCellChanges -&gt; ShowS
+$cshow :: NotebookDocumentCellChanges -&gt; String
+show :: NotebookDocumentCellChanges -&gt; String
+$cshowList :: [NotebookDocumentCellChanges] -&gt; ShowS
+showList :: [NotebookDocumentCellChanges] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682559604"><span id="local-6989586621682559613"><span class="annot"><span class="annottext">NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges -&gt; Bool
+(NotebookDocumentCellChanges
+ -&gt; NotebookDocumentCellChanges -&gt; Bool)
+-&gt; (NotebookDocumentCellChanges
+    -&gt; NotebookDocumentCellChanges -&gt; Bool)
+-&gt; Eq NotebookDocumentCellChanges
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges -&gt; Bool
+== :: NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges -&gt; Bool
+$c/= :: NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges -&gt; Bool
+/= :: NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682559626"><span id="local-6989586621682559635"><span id="local-6989586621682559643"><span id="local-6989586621682559647"><span id="local-6989586621682559650"><span id="local-6989586621682559653"><span id="local-6989586621682559656"><span class="annot"><span class="annottext">Eq NotebookDocumentCellChanges
+Eq NotebookDocumentCellChanges =&gt;
+(NotebookDocumentCellChanges
+ -&gt; NotebookDocumentCellChanges -&gt; Ordering)
+-&gt; (NotebookDocumentCellChanges
+    -&gt; NotebookDocumentCellChanges -&gt; Bool)
+-&gt; (NotebookDocumentCellChanges
+    -&gt; NotebookDocumentCellChanges -&gt; Bool)
+-&gt; (NotebookDocumentCellChanges
+    -&gt; NotebookDocumentCellChanges -&gt; Bool)
+-&gt; (NotebookDocumentCellChanges
+    -&gt; NotebookDocumentCellChanges -&gt; Bool)
+-&gt; (NotebookDocumentCellChanges
+    -&gt; NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges)
+-&gt; (NotebookDocumentCellChanges
+    -&gt; NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges)
+-&gt; Ord NotebookDocumentCellChanges
+NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges -&gt; Bool
+NotebookDocumentCellChanges
+-&gt; NotebookDocumentCellChanges -&gt; Ordering
+NotebookDocumentCellChanges
+-&gt; NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: NotebookDocumentCellChanges
+-&gt; NotebookDocumentCellChanges -&gt; Ordering
+compare :: NotebookDocumentCellChanges
+-&gt; NotebookDocumentCellChanges -&gt; Ordering
+$c&lt; :: NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges -&gt; Bool
+&lt; :: NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges -&gt; Bool
+$c&lt;= :: NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges -&gt; Bool
+&lt;= :: NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges -&gt; Bool
+$c&gt; :: NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges -&gt; Bool
+&gt; :: NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges -&gt; Bool
+$c&gt;= :: NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges -&gt; Bool
+&gt;= :: NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges -&gt; Bool
+$cmax :: NotebookDocumentCellChanges
+-&gt; NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges
+max :: NotebookDocumentCellChanges
+-&gt; NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges
+$cmin :: NotebookDocumentCellChanges
+-&gt; NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges
+min :: NotebookDocumentCellChanges
+-&gt; NotebookDocumentCellChanges -&gt; NotebookDocumentCellChanges
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682559672"><span id="local-6989586621682559674"><span class="annot"><span class="annottext">(forall x.
+ NotebookDocumentCellChanges -&gt; Rep NotebookDocumentCellChanges x)
+-&gt; (forall x.
+    Rep NotebookDocumentCellChanges x -&gt; NotebookDocumentCellChanges)
+-&gt; Generic NotebookDocumentCellChanges
+forall x.
+Rep NotebookDocumentCellChanges x -&gt; NotebookDocumentCellChanges
+forall x.
+NotebookDocumentCellChanges -&gt; Rep NotebookDocumentCellChanges x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x.
+NotebookDocumentCellChanges -&gt; Rep NotebookDocumentCellChanges x
+from :: forall x.
+NotebookDocumentCellChanges -&gt; Rep NotebookDocumentCellChanges x
+$cto :: forall x.
+Rep NotebookDocumentCellChanges x -&gt; NotebookDocumentCellChanges
+to :: forall x.
+Rep NotebookDocumentCellChanges x -&gt; NotebookDocumentCellChanges
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682559680"><span class="annot"><span class="annottext">NotebookDocumentCellChanges -&gt; ()
+(NotebookDocumentCellChanges -&gt; ())
+-&gt; NFData NotebookDocumentCellChanges
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: NotebookDocumentCellChanges -&gt; ()
+rnf :: NotebookDocumentCellChanges -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682559715"><span id="local-6989586621682559722"><span class="annot"><span class="annottext">Eq NotebookDocumentCellChanges
+Eq NotebookDocumentCellChanges =&gt;
+(Int -&gt; NotebookDocumentCellChanges -&gt; Int)
+-&gt; (NotebookDocumentCellChanges -&gt; Int)
+-&gt; Hashable NotebookDocumentCellChanges
+Int -&gt; NotebookDocumentCellChanges -&gt; Int
+NotebookDocumentCellChanges -&gt; Int
+forall a. Eq a =&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+$chashWithSalt :: Int -&gt; NotebookDocumentCellChanges -&gt; Int
+hashWithSalt :: Int -&gt; NotebookDocumentCellChanges -&gt; Int
+$chash :: NotebookDocumentCellChanges -&gt; Int
+hash :: NotebookDocumentCellChanges -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682559751"><span id="local-6989586621682559757"><span class="annot"><span class="annottext">(forall ann. NotebookDocumentCellChanges -&gt; Doc ann)
+-&gt; (forall ann. [NotebookDocumentCellChanges] -&gt; Doc ann)
+-&gt; Pretty NotebookDocumentCellChanges
+forall ann. [NotebookDocumentCellChanges] -&gt; Doc ann
+forall ann. NotebookDocumentCellChanges -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+$cpretty :: forall ann. NotebookDocumentCellChanges -&gt; Doc ann
+pretty :: forall ann. NotebookDocumentCellChanges -&gt; Doc ann
+$cprettyList :: forall ann. [NotebookDocumentCellChanges] -&gt; Doc ann
+prettyList :: forall ann. [NotebookDocumentCellChanges] -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChanges.html#NotebookDocumentCellChanges"><span class="hs-identifier hs-type">NotebookDocumentCellChanges</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682559768"><span id="local-6989586621682559771"><span id="local-6989586621682559774"><span id="local-6989586621682559777"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChanges.html#NotebookDocumentCellChanges"><span class="hs-identifier hs-type">NotebookDocumentCellChanges</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-50"></span><span>  </span><span id="local-6989586621682559797"><span class="annot"><span class="annottext">toJSON :: NotebookDocumentCellChanges -&gt; Value
+</span><a href="#local-6989586621682559797"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChanges.html#NotebookDocumentCellChanges"><span class="hs-identifier hs-type">NotebookDocumentCellChanges</span></a></span><span> </span><span id="local-6989586621682559799"><span class="annot"><span class="annottext">Maybe NotebookDocumentCellChangeStructure
+</span><a href="#local-6989586621682559799"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682559800"><span class="annot"><span class="annottext">Maybe [NotebookCell]
+</span><a href="#local-6989586621682559800"><span class="hs-identifier hs-var">arg1</span></a></span></span><span> </span><span id="local-6989586621682559801"><span class="annot"><span class="annottext">Maybe [NotebookDocumentCellContentChanges]
+</span><a href="#local-6989586621682559801"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[Pair]] -&gt; [Pair]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">([[Pair]] -&gt; [Pair]) -&gt; [[Pair]] -&gt; [Pair]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;structure&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe NotebookDocumentCellChangeStructure -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe NotebookDocumentCellChangeStructure
+</span><a href="#local-6989586621682559799"><span class="hs-identifier hs-var">arg0</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;data&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe [NotebookCell] -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [NotebookCell]
+</span><a href="#local-6989586621682559800"><span class="hs-identifier hs-var">arg1</span></a></span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;textContent&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe [NotebookDocumentCellContentChanges] -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [NotebookDocumentCellContentChanges]
+</span><a href="#local-6989586621682559801"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682559807"><span id="local-6989586621682559811"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChanges.html#NotebookDocumentCellChanges"><span class="hs-identifier hs-type">NotebookDocumentCellChanges</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-55"></span><span>  </span><span id="local-6989586621682559832"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser NotebookDocumentCellChanges
+</span><a href="#local-6989586621682559832"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser NotebookDocumentCellChanges)
+-&gt; Value
+-&gt; Parser NotebookDocumentCellChanges
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;NotebookDocumentCellChanges&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser NotebookDocumentCellChanges)
+ -&gt; Value -&gt; Parser NotebookDocumentCellChanges)
+-&gt; (Object -&gt; Parser NotebookDocumentCellChanges)
+-&gt; Value
+-&gt; Parser NotebookDocumentCellChanges
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682559835"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682559835"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe NotebookDocumentCellChangeStructure
+-&gt; Maybe [NotebookCell]
+-&gt; Maybe [NotebookDocumentCellContentChanges]
+-&gt; NotebookDocumentCellChanges
+</span><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentCellChanges.html#NotebookDocumentCellChanges"><span class="hs-identifier hs-var">NotebookDocumentCellChanges</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe NotebookDocumentCellChangeStructure
+ -&gt; Maybe [NotebookCell]
+ -&gt; Maybe [NotebookDocumentCellContentChanges]
+ -&gt; NotebookDocumentCellChanges)
+-&gt; Parser (Maybe NotebookDocumentCellChangeStructure)
+-&gt; Parser
+     (Maybe [NotebookCell]
+      -&gt; Maybe [NotebookDocumentCellContentChanges]
+      -&gt; NotebookDocumentCellChanges)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682559835"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe NotebookDocumentCellChangeStructure)
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;structure&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (Maybe [NotebookCell]
+   -&gt; Maybe [NotebookDocumentCellContentChanges]
+   -&gt; NotebookDocumentCellChanges)
+-&gt; Parser (Maybe [NotebookCell])
+-&gt; Parser
+     (Maybe [NotebookDocumentCellContentChanges]
+      -&gt; NotebookDocumentCellChanges)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682559835"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe [NotebookCell])
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;data&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (Maybe [NotebookDocumentCellContentChanges]
+   -&gt; NotebookDocumentCellChanges)
+-&gt; Parser (Maybe [NotebookDocumentCellContentChanges])
+-&gt; Parser NotebookDocumentCellChanges
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682559835"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object
+-&gt; Key -&gt; Parser (Maybe [NotebookDocumentCellContentChanges])
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;textContent&quot;</span></span><span>
+</span><span id="line-56"></span></pre></body></html>

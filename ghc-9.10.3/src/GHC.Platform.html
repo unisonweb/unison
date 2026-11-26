@@ -1,0 +1,938 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="annot"><span class="hs-comment">-- | Platform description</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Platform.html"><span class="hs-identifier">GHC.Platform</span></a></span><span>
+</span><span id="line-6"></span><span>   </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier">Platform</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#PlatformWordSize"><span class="hs-identifier">PlatformWordSize</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformArch"><span class="hs-identifier">platformArch</span></a></span><span>
+</span><span id="line-9"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformOS"><span class="hs-identifier">platformOS</span></a></span><span>
+</span><span id="line-10"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ArchOS</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Arch</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">OS</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ArmISA</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ArmISAExt</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ArmABI</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">PPC_64ABI</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ByteOrder</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#target32Bit"><span class="hs-identifier">target32Bit</span></a></span><span>
+</span><span id="line-19"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isARM</span></span><span>
+</span><span id="line-20"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">osElfTarget</span></span><span>
+</span><span id="line-21"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">osMachOTarget</span></span><span>
+</span><span id="line-22"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#osSubsectionsViaSymbols"><span class="hs-identifier">osSubsectionsViaSymbols</span></a></span><span>
+</span><span id="line-23"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformUsesFrameworks"><span class="hs-identifier">platformUsesFrameworks</span></a></span><span>
+</span><span id="line-24"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformWordSizeInBytes"><span class="hs-identifier">platformWordSizeInBytes</span></a></span><span>
+</span><span id="line-25"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformWordSizeInBits"><span class="hs-identifier">platformWordSizeInBits</span></a></span><span>
+</span><span id="line-26"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformMinInt"><span class="hs-identifier">platformMinInt</span></a></span><span>
+</span><span id="line-27"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformMaxInt"><span class="hs-identifier">platformMaxInt</span></a></span><span>
+</span><span id="line-28"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformMaxWord"><span class="hs-identifier">platformMaxWord</span></a></span><span>
+</span><span id="line-29"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformInIntRange"><span class="hs-identifier">platformInIntRange</span></a></span><span>
+</span><span id="line-30"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformInWordRange"><span class="hs-identifier">platformInWordRange</span></a></span><span>
+</span><span id="line-31"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformCConvNeedsExtension"><span class="hs-identifier">platformCConvNeedsExtension</span></a></span><span>
+</span><span id="line-32"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformHasRTSLinker"><span class="hs-identifier">platformHasRTSLinker</span></a></span><span>
+</span><span id="line-33"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#PlatformMisc"><span class="hs-identifier">PlatformMisc</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#SseVersion"><span class="hs-identifier">SseVersion</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#BmiVersion"><span class="hs-identifier">BmiVersion</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#wordAlignment"><span class="hs-identifier">wordAlignment</span></a></span><span>
+</span><span id="line-37"></span><span>   </span><span class="annot"><span class="hs-comment">-- * SSE and AVX</span></span><span>
+</span><span id="line-38"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#isSseEnabled"><span class="hs-identifier">isSseEnabled</span></a></span><span>
+</span><span id="line-39"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#isSse2Enabled"><span class="hs-identifier">isSse2Enabled</span></a></span><span>
+</span><span id="line-40"></span><span>   </span><span class="annot"><span class="hs-comment">-- * Platform constants</span></span><span>
+</span><span id="line-41"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.Constants.html#PlatformConstants"><span class="hs-identifier">PlatformConstants</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#lookupPlatformConstants"><span class="hs-identifier">lookupPlatformConstants</span></a></span><span>
+</span><span id="line-43"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformConstants"><span class="hs-identifier">platformConstants</span></a></span><span>
+</span><span id="line-44"></span><span>   </span><span class="annot"><span class="hs-comment">-- * Shared libraries</span></span><span>
+</span><span id="line-45"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformSOName"><span class="hs-identifier">platformSOName</span></a></span><span>
+</span><span id="line-46"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformHsSOName"><span class="hs-identifier">platformHsSOName</span></a></span><span>
+</span><span id="line-47"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#platformSOExt"><span class="hs-identifier">platformSOExt</span></a></span><span>
+</span><span id="line-48"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Platform.html#genericPlatform"><span class="hs-identifier">genericPlatform</span></a></span><span>
+</span><span id="line-49"></span><span>   </span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Prelude.html"><span class="hs-identifier">Prelude</span></a></span><span> </span><span class="hs-comment">-- See Note [Why do we import Prelude here?]</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Read.html"><span class="hs-identifier">GHC.Read</span></a></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.ByteOrder.html"><span class="hs-identifier">GHC.ByteOrder</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteOrder</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Platform.Constants.html"><span class="hs-identifier">GHC.Platform.Constants</span></a></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Platform.ArchOS</span></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html"><span class="hs-identifier">GHC.Types.Basic</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Basic.html#Alignment"><span class="hs-identifier">Alignment</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html#alignmentOf"><span class="hs-identifier">alignmentOf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.Plain.html"><span class="hs-identifier">GHC.Utils.Panic.Plain</span></a></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Word.html"><span class="hs-identifier">Data.Word</span></a></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Int.html"><span class="hs-identifier">Data.Int</span></a></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../template-haskell-2.22.0.0-d1cb/src/System.FilePath.html"><span class="hs-identifier">System.FilePath</span></a></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../directory-1.3.8.5-757a/src/System.Directory.html"><span class="hs-identifier">System.Directory</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- | Platform description</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- This is used to describe platforms so that we can generate code for them.</span><span>
+</span><span id="line-69"></span><span class="hs-keyword">data</span><span> </span><span id="Platform"><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-var">Platform</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Platform"><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-var">Platform</span></a></span></span><span>
+</span><span id="line-70"></span><span>   </span><span class="hs-special">{</span><span> </span><span id="platformArchOS"><span class="annot"><span class="annottext">Platform -&gt; ArchOS
+</span><a href="GHC.Platform.html#platformArchOS"><span class="hs-identifier hs-var hs-var">platformArchOS</span></a></span></span><span>                   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">ArchOS</span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ Architecture and OS</span></span><span>
+</span><span id="line-71"></span><span>   </span><span class="hs-special">,</span><span> </span><span id="platformWordSize"><span class="annot"><span class="annottext">Platform -&gt; PlatformWordSize
+</span><a href="GHC.Platform.html#platformWordSize"><span class="hs-identifier hs-var hs-var">platformWordSize</span></a></span></span><span>                 </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Platform.html#PlatformWordSize"><span class="hs-identifier hs-type">PlatformWordSize</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Word size</span></span><span>
+</span><span id="line-72"></span><span>   </span><span class="hs-special">,</span><span> </span><span id="platformByteOrder"><span class="annot"><span class="annottext">Platform -&gt; ByteOrder
+</span><a href="GHC.Platform.html#platformByteOrder"><span class="hs-identifier hs-var hs-var">platformByteOrder</span></a></span></span><span>                </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">ByteOrder</span></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ Byte order (endianness)</span></span><span>
+</span><span id="line-73"></span><span>   </span><span class="hs-special">,</span><span> </span><span id="platformUnregisterised"><span class="annot"><span class="annottext">Platform -&gt; Bool
+</span><a href="GHC.Platform.html#platformUnregisterised"><span class="hs-identifier hs-var hs-var">platformUnregisterised</span></a></span></span><span>           </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-74"></span><span>   </span><span class="hs-special">,</span><span> </span><span id="platformHasGnuNonexecStack"><span class="annot"><span class="annottext">Platform -&gt; Bool
+</span><a href="GHC.Platform.html#platformHasGnuNonexecStack"><span class="hs-identifier hs-var hs-var">platformHasGnuNonexecStack</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-75"></span><span>   </span><span class="hs-special">,</span><span> </span><span id="platformHasIdentDirective"><span class="annot"><span class="annottext">Platform -&gt; Bool
+</span><a href="GHC.Platform.html#platformHasIdentDirective"><span class="hs-identifier hs-var hs-var">platformHasIdentDirective</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-76"></span><span>   </span><span class="hs-special">,</span><span> </span><span id="platformHasSubsectionsViaSymbols"><span class="annot"><span class="annottext">Platform -&gt; Bool
+</span><a href="GHC.Platform.html#platformHasSubsectionsViaSymbols"><span class="hs-identifier hs-var hs-var">platformHasSubsectionsViaSymbols</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-77"></span><span>   </span><span class="hs-special">,</span><span> </span><span id="platformIsCrossCompiling"><span class="annot"><span class="annottext">Platform -&gt; Bool
+</span><a href="GHC.Platform.html#platformIsCrossCompiling"><span class="hs-identifier hs-var hs-var">platformIsCrossCompiling</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-78"></span><span>   </span><span class="hs-special">,</span><span> </span><span id="platformLeadingUnderscore"><span class="annot"><span class="annottext">Platform -&gt; Bool
+</span><a href="GHC.Platform.html#platformLeadingUnderscore"><span class="hs-identifier hs-var hs-var">platformLeadingUnderscore</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>             </span><span class="annot"><span class="hs-comment">-- ^ Symbols need underscore prefix</span></span><span>
+</span><span id="line-79"></span><span>   </span><span class="hs-special">,</span><span> </span><span id="platformTablesNextToCode"><span class="annot"><span class="annottext">Platform -&gt; Bool
+</span><a href="GHC.Platform.html#platformTablesNextToCode"><span class="hs-identifier hs-var hs-var">platformTablesNextToCode</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-80"></span><span>      </span><span class="hs-comment">-- ^ Determines whether we will be compiling info tables that reside just</span><span>
+</span><span id="line-81"></span><span>      </span><span class="hs-comment">--   before the entry code, or with an indirection to the entry code. See</span><span>
+</span><span id="line-82"></span><span>      </span><span class="hs-comment">--   TABLES_NEXT_TO_CODE in @rts/include/rts/storage/InfoTables.h@.</span><span>
+</span><span id="line-83"></span><span>   </span><span class="hs-special">,</span><span> </span><span id="platformHasLibm"><span class="annot"><span class="annottext">Platform -&gt; Bool
+</span><a href="GHC.Platform.html#platformHasLibm"><span class="hs-identifier hs-var hs-var">platformHasLibm</span></a></span></span><span>                  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-84"></span><span>      </span><span class="hs-comment">-- ^ Some platforms require that we explicitly link against @libm@ if any</span><span>
+</span><span id="line-85"></span><span>      </span><span class="hs-comment">-- math-y things are used (which we assume to include all programs). See</span><span>
+</span><span id="line-86"></span><span>      </span><span class="hs-comment">-- #14022.</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span>   </span><span class="hs-special">,</span><span> </span><span id="platform_constants"><span class="annot"><span class="annottext">Platform -&gt; Maybe PlatformConstants
+</span><a href="GHC.Platform.html#platform_constants"><span class="hs-identifier hs-var hs-var">platform_constants</span></a></span></span><span>               </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.Platform.Constants.html#PlatformConstants"><span class="hs-identifier hs-type">PlatformConstants</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Constants such as structure offsets, type sizes, etc.</span></span><span>
+</span><span id="line-90"></span><span>   </span><span class="hs-special">}</span><span>
+</span><span id="line-91"></span><span>   </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682382211"><span id="local-6989586621682382215"><span id="local-6989586621682382218"><span id="local-6989586621682382266"><span class="annot"><span class="annottext">ReadPrec [Platform]
+ReadPrec Platform
+Int -&gt; ReadS Platform
+ReadS [Platform]
+(Int -&gt; ReadS Platform)
+-&gt; ReadS [Platform]
+-&gt; ReadPrec Platform
+-&gt; ReadPrec [Platform]
+-&gt; Read Platform
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+$creadsPrec :: Int -&gt; ReadS Platform
+readsPrec :: Int -&gt; ReadS Platform
+$creadList :: ReadS [Platform]
+readList :: ReadS [Platform]
+$creadPrec :: ReadPrec Platform
+readPrec :: ReadPrec Platform
+$creadListPrec :: ReadPrec [Platform]
+readListPrec :: ReadPrec [Platform]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682382274"><span id="local-6989586621682382296"><span id="local-6989586621682382300"><span class="annot"><span class="annottext">Int -&gt; Platform -&gt; ShowS
+[Platform] -&gt; ShowS
+Platform -&gt; String
+(Int -&gt; Platform -&gt; ShowS)
+-&gt; (Platform -&gt; String) -&gt; ([Platform] -&gt; ShowS) -&gt; Show Platform
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Platform -&gt; ShowS
+showsPrec :: Int -&gt; Platform -&gt; ShowS
+$cshow :: Platform -&gt; String
+show :: Platform -&gt; String
+$cshowList :: [Platform] -&gt; ShowS
+showList :: [Platform] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682382306"><span id="local-6989586621682382326"><span class="annot"><span class="annottext">Platform -&gt; Platform -&gt; Bool
+(Platform -&gt; Platform -&gt; Bool)
+-&gt; (Platform -&gt; Platform -&gt; Bool) -&gt; Eq Platform
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Platform -&gt; Platform -&gt; Bool
+== :: Platform -&gt; Platform -&gt; Bool
+$c/= :: Platform -&gt; Platform -&gt; Bool
+/= :: Platform -&gt; Platform -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682382334"><span id="local-6989586621682382354"><span id="local-6989586621682382369"><span id="local-6989586621682382373"><span id="local-6989586621682382376"><span id="local-6989586621682382379"><span id="local-6989586621682382382"><span class="annot"><span class="annottext">Eq Platform
+Eq Platform =&gt;
+(Platform -&gt; Platform -&gt; Ordering)
+-&gt; (Platform -&gt; Platform -&gt; Bool)
+-&gt; (Platform -&gt; Platform -&gt; Bool)
+-&gt; (Platform -&gt; Platform -&gt; Bool)
+-&gt; (Platform -&gt; Platform -&gt; Bool)
+-&gt; (Platform -&gt; Platform -&gt; Platform)
+-&gt; (Platform -&gt; Platform -&gt; Platform)
+-&gt; Ord Platform
+Platform -&gt; Platform -&gt; Bool
+Platform -&gt; Platform -&gt; Ordering
+Platform -&gt; Platform -&gt; Platform
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Platform -&gt; Platform -&gt; Ordering
+compare :: Platform -&gt; Platform -&gt; Ordering
+$c&lt; :: Platform -&gt; Platform -&gt; Bool
+&lt; :: Platform -&gt; Platform -&gt; Bool
+$c&lt;= :: Platform -&gt; Platform -&gt; Bool
+&lt;= :: Platform -&gt; Platform -&gt; Bool
+$c&gt; :: Platform -&gt; Platform -&gt; Bool
+&gt; :: Platform -&gt; Platform -&gt; Bool
+$c&gt;= :: Platform -&gt; Platform -&gt; Bool
+&gt;= :: Platform -&gt; Platform -&gt; Bool
+$cmax :: Platform -&gt; Platform -&gt; Platform
+max :: Platform -&gt; Platform -&gt; Platform
+$cmin :: Platform -&gt; Platform -&gt; Platform
+min :: Platform -&gt; Platform -&gt; Platform
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="annot"><a href="GHC.Platform.html#wordAlignment"><span class="hs-identifier hs-type">wordAlignment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html#Alignment"><span class="hs-identifier hs-type">Alignment</span></a></span><span>
+</span><span id="line-94"></span><span id="wordAlignment"><span class="annot"><span class="annottext">wordAlignment :: Platform -&gt; Alignment
+</span><a href="GHC.Platform.html#wordAlignment"><span class="hs-identifier hs-var hs-var">wordAlignment</span></a></span></span><span> </span><span id="local-6989586621682382390"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382390"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Alignment
+</span><a href="GHC.Types.Basic.html#alignmentOf"><span class="hs-identifier hs-var">alignmentOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Platform -&gt; Int
+</span><a href="GHC.Platform.html#platformWordSizeInBytes"><span class="hs-identifier hs-var">platformWordSizeInBytes</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382390"><span class="hs-identifier hs-var">platform</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- -----------------------------------------------------------------------------</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- SSE and AVX</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- TODO: Instead of using a separate predicate (i.e. isSse2Enabled) to</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- check if SSE is enabled, we might have x86-64 imply the -msse2</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- flag.</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="annot"><a href="GHC.Platform.html#isSseEnabled"><span class="hs-identifier hs-type">isSseEnabled</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-104"></span><span id="isSseEnabled"><span class="annot"><span class="annottext">isSseEnabled :: Platform -&gt; Bool
+</span><a href="GHC.Platform.html#isSseEnabled"><span class="hs-identifier hs-var hs-var">isSseEnabled</span></a></span></span><span> </span><span id="local-6989586621682382391"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382391"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; Arch
+</span><a href="GHC.Platform.html#platformArch"><span class="hs-identifier hs-var">platformArch</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382391"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-105"></span><span>    </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier hs-var">ArchX86_64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-106"></span><span>    </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier hs-var">ArchX86</span></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-107"></span><span>    </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier">_</span></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="annot"><a href="GHC.Platform.html#isSse2Enabled"><span class="hs-identifier hs-type">isSse2Enabled</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-110"></span><span id="isSse2Enabled"><span class="annot"><span class="annottext">isSse2Enabled :: Platform -&gt; Bool
+</span><a href="GHC.Platform.html#isSse2Enabled"><span class="hs-identifier hs-var hs-var">isSse2Enabled</span></a></span></span><span> </span><span id="local-6989586621682382394"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382394"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; Arch
+</span><a href="GHC.Platform.html#platformArch"><span class="hs-identifier hs-var">platformArch</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382394"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-comment">-- We assume  SSE1 and SSE2 operations are available on both</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-comment">-- x86 and x86_64. Historically we didn't default to SSE2 and</span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-comment">-- SSE1 on x86, which results in defacto nondeterminism for how</span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-comment">-- rounding behaves in the associated x87 floating point instructions</span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-comment">-- because variations in the spill/fpu stack placement of arguments for</span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-comment">-- operations would change the precision and final result of what</span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-comment">-- would otherwise be the same expressions with respect to single or</span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-comment">-- double precision IEEE floating point computations.</span><span>
+</span><span id="line-119"></span><span>    </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier hs-var">ArchX86_64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-120"></span><span>    </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier hs-var">ArchX86</span></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-121"></span><span>    </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier">_</span></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- -----------------------------------------------------------------------------</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- Platform Constants</span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="annot"><a href="GHC.Platform.html#platformConstants"><span class="hs-identifier hs-type">platformConstants</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Platform.Constants.html#PlatformConstants"><span class="hs-identifier hs-type">PlatformConstants</span></a></span><span>
+</span><span id="line-127"></span><span id="platformConstants"><span class="annot"><span class="annottext">platformConstants :: Platform -&gt; PlatformConstants
+</span><a href="GHC.Platform.html#platformConstants"><span class="hs-identifier hs-var hs-var">platformConstants</span></a></span></span><span> </span><span id="local-6989586621682382395"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382395"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; Maybe PlatformConstants
+</span><a href="GHC.Platform.html#platform_constants"><span class="hs-identifier hs-var">platform_constants</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382395"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-128"></span><span>  </span><span class="annot"><span class="annottext">Maybe PlatformConstants
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; PlatformConstants
+forall a. HasCallStack =&gt; String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Platform constants not available!&quot;</span></span><span>
+</span><span id="line-129"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682382397"><span class="annot"><span class="annottext">PlatformConstants
+</span><a href="#local-6989586621682382397"><span class="hs-identifier hs-var">c</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PlatformConstants
+</span><a href="#local-6989586621682382397"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="annot"><a href="GHC.Platform.html#genericPlatform"><span class="hs-identifier hs-type">genericPlatform</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span>
+</span><span id="line-132"></span><span id="genericPlatform"><span class="annot"><span class="annottext">genericPlatform :: Platform
+</span><a href="GHC.Platform.html#genericPlatform"><span class="hs-identifier hs-var hs-var">genericPlatform</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span>
+</span><span id="line-133"></span><span>   </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">platformArchOS :: ArchOS
+</span><a href="GHC.Platform.html#platformArchOS"><span class="hs-identifier hs-var">platformArchOS</span></a></span><span>                  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Arch -&gt; OS -&gt; ArchOS
+</span><span class="hs-identifier hs-var">ArchOS</span></span><span> </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier hs-var">ArchX86_64</span></span><span> </span><span class="annot"><span class="annottext">OS
+</span><span class="hs-identifier hs-var">OSLinux</span></span><span>
+</span><span id="line-134"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">platformWordSize :: PlatformWordSize
+</span><a href="GHC.Platform.html#platformWordSize"><span class="hs-identifier hs-var">platformWordSize</span></a></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PlatformWordSize
+</span><a href="GHC.Platform.html#PW8"><span class="hs-identifier hs-var">PW8</span></a></span><span>
+</span><span id="line-135"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">platformByteOrder :: ByteOrder
+</span><a href="GHC.Platform.html#platformByteOrder"><span class="hs-identifier hs-var">platformByteOrder</span></a></span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteOrder
+</span><span class="hs-identifier hs-var">LittleEndian</span></span><span>
+</span><span id="line-136"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">platformUnregisterised :: Bool
+</span><a href="GHC.Platform.html#platformUnregisterised"><span class="hs-identifier hs-var">platformUnregisterised</span></a></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-137"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">platformHasGnuNonexecStack :: Bool
+</span><a href="GHC.Platform.html#platformHasGnuNonexecStack"><span class="hs-identifier hs-var">platformHasGnuNonexecStack</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-138"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">platformHasIdentDirective :: Bool
+</span><a href="GHC.Platform.html#platformHasIdentDirective"><span class="hs-identifier hs-var">platformHasIdentDirective</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-139"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">platformHasSubsectionsViaSymbols :: Bool
+</span><a href="GHC.Platform.html#platformHasSubsectionsViaSymbols"><span class="hs-identifier hs-var">platformHasSubsectionsViaSymbols</span></a></span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-140"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">platformHasLibm :: Bool
+</span><a href="GHC.Platform.html#platformHasLibm"><span class="hs-identifier hs-var">platformHasLibm</span></a></span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-141"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">platformIsCrossCompiling :: Bool
+</span><a href="GHC.Platform.html#platformIsCrossCompiling"><span class="hs-identifier hs-var">platformIsCrossCompiling</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-142"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">platformLeadingUnderscore :: Bool
+</span><a href="GHC.Platform.html#platformLeadingUnderscore"><span class="hs-identifier hs-var">platformLeadingUnderscore</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-143"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">platformTablesNextToCode :: Bool
+</span><a href="GHC.Platform.html#platformTablesNextToCode"><span class="hs-identifier hs-var">platformTablesNextToCode</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-144"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">platform_constants :: Maybe PlatformConstants
+</span><a href="GHC.Platform.html#platform_constants"><span class="hs-identifier hs-var">platform_constants</span></a></span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe PlatformConstants
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-145"></span><span>   </span><span class="hs-special">}</span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="hs-keyword">data</span><span> </span><span id="PlatformWordSize"><span class="annot"><a href="GHC.Platform.html#PlatformWordSize"><span class="hs-identifier hs-var">PlatformWordSize</span></a></span></span><span>
+</span><span id="line-148"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="PW4"><span class="annot"><a href="GHC.Platform.html#PW4"><span class="hs-identifier hs-var">PW4</span></a></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ A 32-bit platform</span></span><span>
+</span><span id="line-149"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PW8"><span class="annot"><a href="GHC.Platform.html#PW8"><span class="hs-identifier hs-var">PW8</span></a></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ A 64-bit platform</span></span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682382404"><span id="local-6989586621682382409"><span class="annot"><span class="annottext">PlatformWordSize -&gt; PlatformWordSize -&gt; Bool
+(PlatformWordSize -&gt; PlatformWordSize -&gt; Bool)
+-&gt; (PlatformWordSize -&gt; PlatformWordSize -&gt; Bool)
+-&gt; Eq PlatformWordSize
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: PlatformWordSize -&gt; PlatformWordSize -&gt; Bool
+== :: PlatformWordSize -&gt; PlatformWordSize -&gt; Bool
+$c/= :: PlatformWordSize -&gt; PlatformWordSize -&gt; Bool
+/= :: PlatformWordSize -&gt; PlatformWordSize -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682382414"><span id="local-6989586621682382416"><span id="local-6989586621682382418"><span id="local-6989586621682382421"><span id="local-6989586621682382424"><span id="local-6989586621682382427"><span id="local-6989586621682382430"><span class="annot"><span class="annottext">Eq PlatformWordSize
+Eq PlatformWordSize =&gt;
+(PlatformWordSize -&gt; PlatformWordSize -&gt; Ordering)
+-&gt; (PlatformWordSize -&gt; PlatformWordSize -&gt; Bool)
+-&gt; (PlatformWordSize -&gt; PlatformWordSize -&gt; Bool)
+-&gt; (PlatformWordSize -&gt; PlatformWordSize -&gt; Bool)
+-&gt; (PlatformWordSize -&gt; PlatformWordSize -&gt; Bool)
+-&gt; (PlatformWordSize -&gt; PlatformWordSize -&gt; PlatformWordSize)
+-&gt; (PlatformWordSize -&gt; PlatformWordSize -&gt; PlatformWordSize)
+-&gt; Ord PlatformWordSize
+PlatformWordSize -&gt; PlatformWordSize -&gt; Bool
+PlatformWordSize -&gt; PlatformWordSize -&gt; Ordering
+PlatformWordSize -&gt; PlatformWordSize -&gt; PlatformWordSize
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: PlatformWordSize -&gt; PlatformWordSize -&gt; Ordering
+compare :: PlatformWordSize -&gt; PlatformWordSize -&gt; Ordering
+$c&lt; :: PlatformWordSize -&gt; PlatformWordSize -&gt; Bool
+&lt; :: PlatformWordSize -&gt; PlatformWordSize -&gt; Bool
+$c&lt;= :: PlatformWordSize -&gt; PlatformWordSize -&gt; Bool
+&lt;= :: PlatformWordSize -&gt; PlatformWordSize -&gt; Bool
+$c&gt; :: PlatformWordSize -&gt; PlatformWordSize -&gt; Bool
+&gt; :: PlatformWordSize -&gt; PlatformWordSize -&gt; Bool
+$c&gt;= :: PlatformWordSize -&gt; PlatformWordSize -&gt; Bool
+&gt;= :: PlatformWordSize -&gt; PlatformWordSize -&gt; Bool
+$cmax :: PlatformWordSize -&gt; PlatformWordSize -&gt; PlatformWordSize
+max :: PlatformWordSize -&gt; PlatformWordSize -&gt; PlatformWordSize
+$cmin :: PlatformWordSize -&gt; PlatformWordSize -&gt; PlatformWordSize
+min :: PlatformWordSize -&gt; PlatformWordSize -&gt; PlatformWordSize
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682382433"><span id="local-6989586621682382437"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="GHC.Platform.html#PlatformWordSize"><span class="hs-identifier hs-type">PlatformWordSize</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-153"></span><span>  </span><span id="local-6989586621682382439"><span class="annot"><span class="annottext">show :: PlatformWordSize -&gt; String
+</span><a href="#local-6989586621682382439"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="annot"><span class="annottext">PlatformWordSize
+</span><a href="GHC.Platform.html#PW4"><span class="hs-identifier hs-var">PW4</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;4&quot;</span></span><span>
+</span><span id="line-154"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">PlatformWordSize
+</span><a href="GHC.Platform.html#PW8"><span class="hs-identifier hs-var">PW8</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;8&quot;</span></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682382442"><span id="local-6989586621682382445"><span id="local-6989586621682382449"><span class="annot"><span class="hs-identifier hs-type">Read</span></span><span> </span><span class="annot"><a href="GHC.Platform.html#PlatformWordSize"><span class="hs-identifier hs-type">PlatformWordSize</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-157"></span><span>  </span><span id="local-6989586621682382465"><span class="annot"><span class="annottext">readPrec :: ReadPrec PlatformWordSize
+</span><span class="hs-identifier hs-var hs-var hs-var">readPrec</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-158"></span><span>    </span><span id="local-6989586621682382466"><span class="annot"><a href="#local-6989586621682382466"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier">Int</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ReadPrec Int
+forall a. Read a =&gt; ReadPrec a
+</span><span class="hs-identifier hs-var">readPrec</span></span><span>
+</span><span id="line-159"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621682382466"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-160"></span><span>      </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PlatformWordSize -&gt; ReadPrec PlatformWordSize
+forall a. a -&gt; ReadPrec a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">PlatformWordSize
+</span><a href="GHC.Platform.html#PW4"><span class="hs-identifier hs-var">PW4</span></a></span><span>
+</span><span id="line-161"></span><span>      </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PlatformWordSize -&gt; ReadPrec PlatformWordSize
+forall a. a -&gt; ReadPrec a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">PlatformWordSize
+</span><a href="GHC.Platform.html#PW8"><span class="hs-identifier hs-var">PW8</span></a></span><span>
+</span><span id="line-162"></span><span>      </span><span id="local-6989586621682382467"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682382467"><span class="hs-identifier hs-var">other</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; ReadPrec PlatformWordSize
+forall a. String -&gt; ReadPrec a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Invalid PlatformWordSize: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682382467"><span class="hs-identifier hs-var">other</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="annot"><a href="GHC.Platform.html#platformWordSizeInBytes"><span class="hs-identifier hs-type">platformWordSizeInBytes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-165"></span><span id="platformWordSizeInBytes"><span class="annot"><span class="annottext">platformWordSizeInBytes :: Platform -&gt; Int
+</span><a href="GHC.Platform.html#platformWordSizeInBytes"><span class="hs-identifier hs-var hs-var">platformWordSizeInBytes</span></a></span></span><span> </span><span id="local-6989586621682382468"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382468"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-166"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; PlatformWordSize
+</span><a href="GHC.Platform.html#platformWordSize"><span class="hs-identifier hs-var">platformWordSize</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382468"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-167"></span><span>      </span><span class="annot"><span class="annottext">PlatformWordSize
+</span><a href="GHC.Platform.html#PW4"><span class="hs-identifier hs-var">PW4</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-168"></span><span>      </span><span class="annot"><span class="annottext">PlatformWordSize
+</span><a href="GHC.Platform.html#PW8"><span class="hs-identifier hs-var">PW8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="annot"><a href="GHC.Platform.html#platformWordSizeInBits"><span class="hs-identifier hs-type">platformWordSizeInBits</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-171"></span><span id="platformWordSizeInBits"><span class="annot"><span class="annottext">platformWordSizeInBits :: Platform -&gt; Int
+</span><a href="GHC.Platform.html#platformWordSizeInBits"><span class="hs-identifier hs-var hs-var">platformWordSizeInBits</span></a></span></span><span> </span><span id="local-6989586621682382469"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382469"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; Int
+</span><a href="GHC.Platform.html#platformWordSizeInBytes"><span class="hs-identifier hs-var">platformWordSizeInBytes</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382469"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span class="annot"><span class="hs-comment">-- | Platform architecture</span></span><span>
+</span><span id="line-174"></span><span class="annot"><a href="GHC.Platform.html#platformArch"><span class="hs-identifier hs-type">platformArch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Arch</span></span><span>
+</span><span id="line-175"></span><span id="platformArch"><span class="annot"><span class="annottext">platformArch :: Platform -&gt; Arch
+</span><a href="GHC.Platform.html#platformArch"><span class="hs-identifier hs-var hs-var">platformArch</span></a></span></span><span> </span><span id="local-6989586621682382471"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382471"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; ArchOS
+</span><a href="GHC.Platform.html#platformArchOS"><span class="hs-identifier hs-var">platformArchOS</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382471"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-176"></span><span>   </span><span class="annot"><span class="hs-identifier hs-type">ArchOS</span></span><span> </span><span id="local-6989586621682382472"><span class="annot"><span class="annottext">Arch
+</span><a href="#local-6989586621682382472"><span class="hs-identifier hs-var">arch</span></a></span></span><span> </span><span class="annot"><span class="annottext">OS
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Arch
+</span><a href="#local-6989586621682382472"><span class="hs-identifier hs-var">arch</span></a></span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="annot"><span class="hs-comment">-- | Platform OS</span></span><span>
+</span><span id="line-179"></span><span class="annot"><a href="GHC.Platform.html#platformOS"><span class="hs-identifier hs-type">platformOS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OS</span></span><span>
+</span><span id="line-180"></span><span id="platformOS"><span class="annot"><span class="annottext">platformOS :: Platform -&gt; OS
+</span><a href="GHC.Platform.html#platformOS"><span class="hs-identifier hs-var hs-var">platformOS</span></a></span></span><span> </span><span id="local-6989586621682382473"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382473"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; ArchOS
+</span><a href="GHC.Platform.html#platformArchOS"><span class="hs-identifier hs-var">platformArchOS</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382473"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-181"></span><span>   </span><span class="annot"><span class="hs-identifier hs-type">ArchOS</span></span><span> </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682382474"><span class="annot"><span class="annottext">OS
+</span><a href="#local-6989586621682382474"><span class="hs-identifier hs-var">os</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">OS
+</span><a href="#local-6989586621682382474"><span class="hs-identifier hs-var">os</span></a></span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span class="annot"><span class="hs-comment">-- | This predicate tells us whether the platform is 32-bit.</span></span><span>
+</span><span id="line-184"></span><span class="annot"><a href="GHC.Platform.html#target32Bit"><span class="hs-identifier hs-type">target32Bit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-185"></span><span id="target32Bit"><span class="annot"><span class="annottext">target32Bit :: Platform -&gt; Bool
+</span><a href="GHC.Platform.html#target32Bit"><span class="hs-identifier hs-var hs-var">target32Bit</span></a></span></span><span> </span><span id="local-6989586621682382475"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382475"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-186"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; PlatformWordSize
+</span><a href="GHC.Platform.html#platformWordSize"><span class="hs-identifier hs-var">platformWordSize</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382475"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-187"></span><span>      </span><span class="annot"><span class="annottext">PlatformWordSize
+</span><a href="GHC.Platform.html#PW4"><span class="hs-identifier hs-var">PW4</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-188"></span><span>      </span><span class="annot"><span class="annottext">PlatformWordSize
+</span><a href="GHC.Platform.html#PW8"><span class="hs-identifier hs-var">PW8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-189"></span><span>
+</span><span id="line-190"></span><span class="annot"><a href="GHC.Platform.html#osUsesFrameworks"><span class="hs-identifier hs-type">osUsesFrameworks</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OS</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-191"></span><span id="osUsesFrameworks"><span class="annot"><span class="annottext">osUsesFrameworks :: OS -&gt; Bool
+</span><a href="GHC.Platform.html#osUsesFrameworks"><span class="hs-identifier hs-var hs-var">osUsesFrameworks</span></a></span></span><span> </span><span class="annot"><span class="annottext">OS
+</span><span class="hs-identifier hs-var">OSDarwin</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-192"></span><span class="annot"><a href="GHC.Platform.html#osUsesFrameworks"><span class="hs-identifier hs-var">osUsesFrameworks</span></a></span><span> </span><span class="annot"><span class="annottext">OS
+</span><span class="hs-identifier">_</span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span class="annot"><a href="GHC.Platform.html#platformUsesFrameworks"><span class="hs-identifier hs-type">platformUsesFrameworks</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-195"></span><span id="platformUsesFrameworks"><span class="annot"><span class="annottext">platformUsesFrameworks :: Platform -&gt; Bool
+</span><a href="GHC.Platform.html#platformUsesFrameworks"><span class="hs-identifier hs-var hs-var">platformUsesFrameworks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OS -&gt; Bool
+</span><a href="GHC.Platform.html#osUsesFrameworks"><span class="hs-identifier hs-var">osUsesFrameworks</span></a></span><span> </span><span class="annot"><span class="annottext">(OS -&gt; Bool) -&gt; (Platform -&gt; OS) -&gt; Platform -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; OS
+</span><a href="GHC.Platform.html#platformOS"><span class="hs-identifier hs-var">platformOS</span></a></span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span class="annot"><a href="GHC.Platform.html#osSubsectionsViaSymbols"><span class="hs-identifier hs-type">osSubsectionsViaSymbols</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OS</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-198"></span><span id="osSubsectionsViaSymbols"><span class="annot"><span class="annottext">osSubsectionsViaSymbols :: OS -&gt; Bool
+</span><a href="GHC.Platform.html#osSubsectionsViaSymbols"><span class="hs-identifier hs-var hs-var">osSubsectionsViaSymbols</span></a></span></span><span> </span><span class="annot"><span class="annottext">OS
+</span><span class="hs-identifier hs-var">OSDarwin</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-199"></span><span class="annot"><a href="GHC.Platform.html#osSubsectionsViaSymbols"><span class="hs-identifier hs-var">osSubsectionsViaSymbols</span></a></span><span> </span><span class="annot"><span class="annottext">OS
+</span><span class="hs-identifier">_</span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-200"></span><span>
+</span><span id="line-201"></span><span class="annot"><span class="hs-comment">-- | Minimum representable Int value for the given platform</span></span><span>
+</span><span id="line-202"></span><span class="annot"><a href="GHC.Platform.html#platformMinInt"><span class="hs-identifier hs-type">platformMinInt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-203"></span><span id="platformMinInt"><span class="annot"><span class="annottext">platformMinInt :: Platform -&gt; Integer
+</span><a href="GHC.Platform.html#platformMinInt"><span class="hs-identifier hs-var hs-var">platformMinInt</span></a></span></span><span> </span><span id="local-6989586621682382479"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382479"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; PlatformWordSize
+</span><a href="GHC.Platform.html#platformWordSize"><span class="hs-identifier hs-var">platformWordSize</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382479"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-204"></span><span>   </span><span class="annot"><span class="annottext">PlatformWordSize
+</span><a href="GHC.Platform.html#PW4"><span class="hs-identifier hs-var">PW4</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int32 -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int32
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">minBound</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span>   </span><span class="annot"><span class="annottext">PlatformWordSize
+</span><a href="GHC.Platform.html#PW8"><span class="hs-identifier hs-var">PW8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int64
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">minBound</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-206"></span><span>
+</span><span id="line-207"></span><span class="annot"><span class="hs-comment">-- | Maximum representable Int value for the given platform</span></span><span>
+</span><span id="line-208"></span><span class="annot"><a href="GHC.Platform.html#platformMaxInt"><span class="hs-identifier hs-type">platformMaxInt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-209"></span><span id="platformMaxInt"><span class="annot"><span class="annottext">platformMaxInt :: Platform -&gt; Integer
+</span><a href="GHC.Platform.html#platformMaxInt"><span class="hs-identifier hs-var hs-var">platformMaxInt</span></a></span></span><span> </span><span id="local-6989586621682382481"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382481"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; PlatformWordSize
+</span><a href="GHC.Platform.html#platformWordSize"><span class="hs-identifier hs-var">platformWordSize</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382481"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-210"></span><span>   </span><span class="annot"><span class="annottext">PlatformWordSize
+</span><a href="GHC.Platform.html#PW4"><span class="hs-identifier hs-var">PW4</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int32 -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int32
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-211"></span><span>   </span><span class="annot"><span class="annottext">PlatformWordSize
+</span><a href="GHC.Platform.html#PW8"><span class="hs-identifier hs-var">PW8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int64
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-212"></span><span>
+</span><span id="line-213"></span><span class="annot"><span class="hs-comment">-- | Maximum representable Word value for the given platform</span></span><span>
+</span><span id="line-214"></span><span class="annot"><a href="GHC.Platform.html#platformMaxWord"><span class="hs-identifier hs-type">platformMaxWord</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-215"></span><span id="platformMaxWord"><span class="annot"><span class="annottext">platformMaxWord :: Platform -&gt; Integer
+</span><a href="GHC.Platform.html#platformMaxWord"><span class="hs-identifier hs-var hs-var">platformMaxWord</span></a></span></span><span> </span><span id="local-6989586621682382483"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382483"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; PlatformWordSize
+</span><a href="GHC.Platform.html#platformWordSize"><span class="hs-identifier hs-var">platformWordSize</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382483"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-216"></span><span>   </span><span class="annot"><span class="annottext">PlatformWordSize
+</span><a href="GHC.Platform.html#PW4"><span class="hs-identifier hs-var">PW4</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-217"></span><span>   </span><span class="annot"><span class="annottext">PlatformWordSize
+</span><a href="GHC.Platform.html#PW8"><span class="hs-identifier hs-var">PW8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-218"></span><span>
+</span><span id="line-219"></span><span class="annot"><span class="hs-comment">-- | Test if the given Integer is representable with a platform Int</span></span><span>
+</span><span id="line-220"></span><span class="annot"><a href="GHC.Platform.html#platformInIntRange"><span class="hs-identifier hs-type">platformInIntRange</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-221"></span><span id="platformInIntRange"><span class="annot"><span class="annottext">platformInIntRange :: Platform -&gt; Integer -&gt; Bool
+</span><a href="GHC.Platform.html#platformInIntRange"><span class="hs-identifier hs-var hs-var">platformInIntRange</span></a></span></span><span> </span><span id="local-6989586621682382484"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382484"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span id="local-6989586621682382485"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682382485"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682382485"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; Integer
+</span><a href="GHC.Platform.html#platformMinInt"><span class="hs-identifier hs-var">platformMinInt</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382484"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682382485"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; Integer
+</span><a href="GHC.Platform.html#platformMaxInt"><span class="hs-identifier hs-var">platformMaxInt</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382484"><span class="hs-identifier hs-var">platform</span></a></span><span>
+</span><span id="line-222"></span><span>
+</span><span id="line-223"></span><span class="annot"><span class="hs-comment">-- | Test if the given Integer is representable with a platform Word</span></span><span>
+</span><span id="line-224"></span><span class="annot"><a href="GHC.Platform.html#platformInWordRange"><span class="hs-identifier hs-type">platformInWordRange</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-225"></span><span id="platformInWordRange"><span class="annot"><span class="annottext">platformInWordRange :: Platform -&gt; Integer -&gt; Bool
+</span><a href="GHC.Platform.html#platformInWordRange"><span class="hs-identifier hs-var hs-var">platformInWordRange</span></a></span></span><span> </span><span id="local-6989586621682382487"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382487"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span id="local-6989586621682382488"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682382488"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682382488"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682382488"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; Integer
+</span><a href="GHC.Platform.html#platformMaxWord"><span class="hs-identifier hs-var">platformMaxWord</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382487"><span class="hs-identifier hs-var">platform</span></a></span><span>
+</span><span id="line-226"></span><span>
+</span><span id="line-227"></span><span class="hs-comment">-- | For some architectures the C calling convention is that any</span><span>
+</span><span id="line-228"></span><span class="hs-comment">-- integer shorter than 64 bits is replaced by its 64 bits</span><span>
+</span><span id="line-229"></span><span class="hs-comment">-- representation using sign or zero extension.</span><span>
+</span><span id="line-230"></span><span class="annot"><a href="GHC.Platform.html#platformCConvNeedsExtension"><span class="hs-identifier hs-type">platformCConvNeedsExtension</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-231"></span><span id="platformCConvNeedsExtension"><span class="annot"><span class="annottext">platformCConvNeedsExtension :: Platform -&gt; Bool
+</span><a href="GHC.Platform.html#platformCConvNeedsExtension"><span class="hs-identifier hs-var hs-var">platformCConvNeedsExtension</span></a></span></span><span> </span><span id="local-6989586621682382489"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382489"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; Arch
+</span><a href="GHC.Platform.html#platformArch"><span class="hs-identifier hs-var">platformArch</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382489"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-232"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">ArchPPC_64</span></span><span> </span><span class="annot"><span class="annottext">PPC_64ABI
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-233"></span><span>  </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier hs-var">ArchS390X</span></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-234"></span><span>  </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier hs-var">ArchRISCV64</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-235"></span><span>  </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier hs-var">ArchLoongArch64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-236"></span><span>  </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier hs-var">ArchAArch64</span></span><span>
+</span><span id="line-237"></span><span>      </span><span class="hs-comment">-- Apple's AArch64 ABI requires that the caller sign-extend</span><span>
+</span><span id="line-238"></span><span>      </span><span class="hs-comment">-- small integer arguments. See</span><span>
+</span><span id="line-239"></span><span>      </span><span class="hs-comment">-- https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms</span><span>
+</span><span id="line-240"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">OS
+</span><span class="hs-identifier hs-var">OSDarwin</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; OS
+</span><a href="GHC.Platform.html#platformOS"><span class="hs-identifier hs-var">platformOS</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382489"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-241"></span><span>  </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier">_</span></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-242"></span><span>
+</span><span id="line-243"></span><span class="annot"><span class="hs-comment">-- | Does this platform have an RTS linker?</span></span><span>
+</span><span id="line-244"></span><span class="annot"><a href="GHC.Platform.html#platformHasRTSLinker"><span class="hs-identifier hs-type">platformHasRTSLinker</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-245"></span><span class="hs-comment">-- Note that we've inlined this logic in hadrian's</span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- Settings.Builders.RunTest.inTreeCompilerArgs.</span><span>
+</span><span id="line-247"></span><span class="hs-comment">-- If you change this, be sure to change it too</span><span>
+</span><span id="line-248"></span><span id="platformHasRTSLinker"><span class="annot"><span class="annottext">platformHasRTSLinker :: Platform -&gt; Bool
+</span><a href="GHC.Platform.html#platformHasRTSLinker"><span class="hs-identifier hs-var hs-var">platformHasRTSLinker</span></a></span></span><span> </span><span id="local-6989586621682382495"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382495"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ArchOS -&gt; Arch
+</span><span class="hs-identifier hs-var">archOS_arch</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Platform -&gt; ArchOS
+</span><a href="GHC.Platform.html#platformArchOS"><span class="hs-identifier hs-var">platformArchOS</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382495"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-249"></span><span>  </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier hs-var">ArchPPC</span></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- powerpc</span><span>
+</span><span id="line-250"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">ArchPPC_64</span></span><span> </span><span class="annot"><span class="annottext">PPC_64ABI
+</span><span class="hs-identifier hs-var">ELF_V1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- powerpc64</span><span>
+</span><span id="line-251"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">ArchPPC_64</span></span><span> </span><span class="annot"><span class="annottext">PPC_64ABI
+</span><span class="hs-identifier hs-var">ELF_V2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- powerpc64le</span><span>
+</span><span id="line-252"></span><span>  </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier hs-var">ArchS390X</span></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-253"></span><span>  </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier hs-var">ArchRISCV64</span></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-254"></span><span>  </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier hs-var">ArchLoongArch64</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-255"></span><span>  </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier hs-var">ArchJavaScript</span></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-256"></span><span>  </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier hs-var">ArchWasm32</span></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-257"></span><span>  </span><span class="annot"><span class="annottext">Arch
+</span><span class="hs-identifier">_</span></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-258"></span><span>
+</span><span id="line-259"></span><span>
+</span><span id="line-260"></span><span>
+</span><span id="line-261"></span><span class="hs-comment">--------------------------------------------------</span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- Instruction sets</span><span>
+</span><span id="line-263"></span><span class="hs-comment">--------------------------------------------------</span><span>
+</span><span id="line-264"></span><span>
+</span><span id="line-265"></span><span class="annot"><span class="hs-comment">-- | x86 SSE instructions</span></span><span>
+</span><span id="line-266"></span><span class="hs-keyword">data</span><span> </span><span id="SseVersion"><span class="annot"><a href="GHC.Platform.html#SseVersion"><span class="hs-identifier hs-var">SseVersion</span></a></span></span><span>
+</span><span id="line-267"></span><span>   </span><span class="hs-glyph">=</span><span> </span><span id="SSE1"><span class="annot"><a href="GHC.Platform.html#SSE1"><span class="hs-identifier hs-var">SSE1</span></a></span></span><span>
+</span><span id="line-268"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span id="SSE2"><span class="annot"><a href="GHC.Platform.html#SSE2"><span class="hs-identifier hs-var">SSE2</span></a></span></span><span>
+</span><span id="line-269"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span id="SSE3"><span class="annot"><a href="GHC.Platform.html#SSE3"><span class="hs-identifier hs-var">SSE3</span></a></span></span><span>
+</span><span id="line-270"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span id="SSE4"><span class="annot"><a href="GHC.Platform.html#SSE4"><span class="hs-identifier hs-var">SSE4</span></a></span></span><span>
+</span><span id="line-271"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span id="SSE42"><span class="annot"><a href="GHC.Platform.html#SSE42"><span class="hs-identifier hs-var">SSE42</span></a></span></span><span>
+</span><span id="line-272"></span><span>   </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682382508"><span id="local-6989586621682382512"><span class="annot"><span class="annottext">SseVersion -&gt; SseVersion -&gt; Bool
+(SseVersion -&gt; SseVersion -&gt; Bool)
+-&gt; (SseVersion -&gt; SseVersion -&gt; Bool) -&gt; Eq SseVersion
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: SseVersion -&gt; SseVersion -&gt; Bool
+== :: SseVersion -&gt; SseVersion -&gt; Bool
+$c/= :: SseVersion -&gt; SseVersion -&gt; Bool
+/= :: SseVersion -&gt; SseVersion -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682382518"><span id="local-6989586621682382522"><span id="local-6989586621682382526"><span id="local-6989586621682382530"><span id="local-6989586621682382533"><span id="local-6989586621682382536"><span id="local-6989586621682382539"><span class="annot"><span class="annottext">Eq SseVersion
+Eq SseVersion =&gt;
+(SseVersion -&gt; SseVersion -&gt; Ordering)
+-&gt; (SseVersion -&gt; SseVersion -&gt; Bool)
+-&gt; (SseVersion -&gt; SseVersion -&gt; Bool)
+-&gt; (SseVersion -&gt; SseVersion -&gt; Bool)
+-&gt; (SseVersion -&gt; SseVersion -&gt; Bool)
+-&gt; (SseVersion -&gt; SseVersion -&gt; SseVersion)
+-&gt; (SseVersion -&gt; SseVersion -&gt; SseVersion)
+-&gt; Ord SseVersion
+SseVersion -&gt; SseVersion -&gt; Bool
+SseVersion -&gt; SseVersion -&gt; Ordering
+SseVersion -&gt; SseVersion -&gt; SseVersion
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: SseVersion -&gt; SseVersion -&gt; Ordering
+compare :: SseVersion -&gt; SseVersion -&gt; Ordering
+$c&lt; :: SseVersion -&gt; SseVersion -&gt; Bool
+&lt; :: SseVersion -&gt; SseVersion -&gt; Bool
+$c&lt;= :: SseVersion -&gt; SseVersion -&gt; Bool
+&lt;= :: SseVersion -&gt; SseVersion -&gt; Bool
+$c&gt; :: SseVersion -&gt; SseVersion -&gt; Bool
+&gt; :: SseVersion -&gt; SseVersion -&gt; Bool
+$c&gt;= :: SseVersion -&gt; SseVersion -&gt; Bool
+&gt;= :: SseVersion -&gt; SseVersion -&gt; Bool
+$cmax :: SseVersion -&gt; SseVersion -&gt; SseVersion
+max :: SseVersion -&gt; SseVersion -&gt; SseVersion
+$cmin :: SseVersion -&gt; SseVersion -&gt; SseVersion
+min :: SseVersion -&gt; SseVersion -&gt; SseVersion
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-273"></span><span>
+</span><span id="line-274"></span><span class="annot"><span class="hs-comment">-- | x86 BMI (bit manipulation) instructions</span></span><span>
+</span><span id="line-275"></span><span class="hs-keyword">data</span><span> </span><span id="BmiVersion"><span class="annot"><a href="GHC.Platform.html#BmiVersion"><span class="hs-identifier hs-var">BmiVersion</span></a></span></span><span>
+</span><span id="line-276"></span><span>   </span><span class="hs-glyph">=</span><span> </span><span id="BMI1"><span class="annot"><a href="GHC.Platform.html#BMI1"><span class="hs-identifier hs-var">BMI1</span></a></span></span><span>
+</span><span id="line-277"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span id="BMI2"><span class="annot"><a href="GHC.Platform.html#BMI2"><span class="hs-identifier hs-var">BMI2</span></a></span></span><span>
+</span><span id="line-278"></span><span>   </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682382544"><span id="local-6989586621682382548"><span class="annot"><span class="annottext">BmiVersion -&gt; BmiVersion -&gt; Bool
+(BmiVersion -&gt; BmiVersion -&gt; Bool)
+-&gt; (BmiVersion -&gt; BmiVersion -&gt; Bool) -&gt; Eq BmiVersion
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: BmiVersion -&gt; BmiVersion -&gt; Bool
+== :: BmiVersion -&gt; BmiVersion -&gt; Bool
+$c/= :: BmiVersion -&gt; BmiVersion -&gt; Bool
+/= :: BmiVersion -&gt; BmiVersion -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682382554"><span id="local-6989586621682382556"><span id="local-6989586621682382558"><span id="local-6989586621682382562"><span id="local-6989586621682382565"><span id="local-6989586621682382568"><span id="local-6989586621682382571"><span class="annot"><span class="annottext">Eq BmiVersion
+Eq BmiVersion =&gt;
+(BmiVersion -&gt; BmiVersion -&gt; Ordering)
+-&gt; (BmiVersion -&gt; BmiVersion -&gt; Bool)
+-&gt; (BmiVersion -&gt; BmiVersion -&gt; Bool)
+-&gt; (BmiVersion -&gt; BmiVersion -&gt; Bool)
+-&gt; (BmiVersion -&gt; BmiVersion -&gt; Bool)
+-&gt; (BmiVersion -&gt; BmiVersion -&gt; BmiVersion)
+-&gt; (BmiVersion -&gt; BmiVersion -&gt; BmiVersion)
+-&gt; Ord BmiVersion
+BmiVersion -&gt; BmiVersion -&gt; Bool
+BmiVersion -&gt; BmiVersion -&gt; Ordering
+BmiVersion -&gt; BmiVersion -&gt; BmiVersion
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: BmiVersion -&gt; BmiVersion -&gt; Ordering
+compare :: BmiVersion -&gt; BmiVersion -&gt; Ordering
+$c&lt; :: BmiVersion -&gt; BmiVersion -&gt; Bool
+&lt; :: BmiVersion -&gt; BmiVersion -&gt; Bool
+$c&lt;= :: BmiVersion -&gt; BmiVersion -&gt; Bool
+&lt;= :: BmiVersion -&gt; BmiVersion -&gt; Bool
+$c&gt; :: BmiVersion -&gt; BmiVersion -&gt; Bool
+&gt; :: BmiVersion -&gt; BmiVersion -&gt; Bool
+$c&gt;= :: BmiVersion -&gt; BmiVersion -&gt; Bool
+&gt;= :: BmiVersion -&gt; BmiVersion -&gt; Bool
+$cmax :: BmiVersion -&gt; BmiVersion -&gt; BmiVersion
+max :: BmiVersion -&gt; BmiVersion -&gt; BmiVersion
+$cmin :: BmiVersion -&gt; BmiVersion -&gt; BmiVersion
+min :: BmiVersion -&gt; BmiVersion -&gt; BmiVersion
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-279"></span><span>
+</span><span id="line-280"></span><span class="hs-comment">-- | Platform-specific settings formerly hard-coded in Config.hs.</span><span>
+</span><span id="line-281"></span><span class="hs-comment">--</span><span>
+</span><span id="line-282"></span><span class="hs-comment">-- These should probably be all be triaged whether they can be computed from</span><span>
+</span><span id="line-283"></span><span class="hs-comment">-- other settings or belong in another another place (like 'Platform' above).</span><span>
+</span><span id="line-284"></span><span class="hs-keyword">data</span><span> </span><span id="PlatformMisc"><span class="annot"><a href="GHC.Platform.html#PlatformMisc"><span class="hs-identifier hs-var">PlatformMisc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PlatformMisc"><span class="annot"><a href="GHC.Platform.html#PlatformMisc"><span class="hs-identifier hs-var">PlatformMisc</span></a></span></span><span>
+</span><span id="line-285"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">-- TODO Recalculate string from richer info?</span><span>
+</span><span id="line-286"></span><span>    </span><span id="platformMisc_targetPlatformString"><span class="annot"><span class="annottext">PlatformMisc -&gt; String
+</span><a href="GHC.Platform.html#platformMisc_targetPlatformString"><span class="hs-identifier hs-var hs-var">platformMisc_targetPlatformString</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-287"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="platformMisc_ghcWithInterpreter"><span class="annot"><span class="annottext">PlatformMisc -&gt; Bool
+</span><a href="GHC.Platform.html#platformMisc_ghcWithInterpreter"><span class="hs-identifier hs-var hs-var">platformMisc_ghcWithInterpreter</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-288"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="platformMisc_libFFI"><span class="annot"><span class="annottext">PlatformMisc -&gt; Bool
+</span><a href="GHC.Platform.html#platformMisc_libFFI"><span class="hs-identifier hs-var hs-var">platformMisc_libFFI</span></a></span></span><span>               </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-289"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="platformMisc_llvmTarget"><span class="annot"><span class="annottext">PlatformMisc -&gt; String
+</span><a href="GHC.Platform.html#platformMisc_llvmTarget"><span class="hs-identifier hs-var hs-var">platformMisc_llvmTarget</span></a></span></span><span>           </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-290"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-291"></span><span>
+</span><span id="line-292"></span><span class="annot"><a href="GHC.Platform.html#platformSOName"><span class="hs-identifier hs-type">platformSOName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span>
+</span><span id="line-293"></span><span id="platformSOName"><span class="annot"><span class="annottext">platformSOName :: Platform -&gt; ShowS
+</span><a href="GHC.Platform.html#platformSOName"><span class="hs-identifier hs-var hs-var">platformSOName</span></a></span></span><span> </span><span id="local-6989586621682382579"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382579"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span id="local-6989586621682382580"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682382580"><span class="hs-identifier hs-var">root</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; OS
+</span><a href="GHC.Platform.html#platformOS"><span class="hs-identifier hs-var">platformOS</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382579"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-294"></span><span>   </span><span class="annot"><span class="annottext">OS
+</span><span class="hs-identifier hs-var">OSMinGW32</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>           </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682382580"><span class="hs-identifier hs-var">root</span></a></span><span>  </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="../../filepath-1.5.4.0-8591/src/System.FilePath.Posix.html#%3C.%3E"><span class="hs-operator hs-var">&lt;.&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; String
+</span><a href="GHC.Platform.html#platformSOExt"><span class="hs-identifier hs-var">platformSOExt</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382579"><span class="hs-identifier hs-var">platform</span></a></span><span>
+</span><span id="line-295"></span><span>   </span><span class="annot"><span class="annottext">OS
+</span><span class="hs-identifier">_</span></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;lib&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682382580"><span class="hs-identifier hs-var">root</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="../../filepath-1.5.4.0-8591/src/System.FilePath.Posix.html#%3C.%3E"><span class="hs-operator hs-var">&lt;.&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; String
+</span><a href="GHC.Platform.html#platformSOExt"><span class="hs-identifier hs-var">platformSOExt</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382579"><span class="hs-identifier hs-var">platform</span></a></span><span>
+</span><span id="line-296"></span><span>
+</span><span id="line-297"></span><span class="annot"><a href="GHC.Platform.html#platformHsSOName"><span class="hs-identifier hs-type">platformHsSOName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span>
+</span><span id="line-298"></span><span id="platformHsSOName"><span class="annot"><span class="annottext">platformHsSOName :: Platform -&gt; ShowS
+</span><a href="GHC.Platform.html#platformHsSOName"><span class="hs-identifier hs-var hs-var">platformHsSOName</span></a></span></span><span> </span><span id="local-6989586621682382583"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382583"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span id="local-6989586621682382584"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682382584"><span class="hs-identifier hs-var">root</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;lib&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682382584"><span class="hs-identifier hs-var">root</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="../../filepath-1.5.4.0-8591/src/System.FilePath.Posix.html#%3C.%3E"><span class="hs-operator hs-var">&lt;.&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; String
+</span><a href="GHC.Platform.html#platformSOExt"><span class="hs-identifier hs-var">platformSOExt</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382583"><span class="hs-identifier hs-var">platform</span></a></span><span>
+</span><span id="line-299"></span><span>
+</span><span id="line-300"></span><span class="annot"><a href="GHC.Platform.html#platformSOExt"><span class="hs-identifier hs-type">platformSOExt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span>
+</span><span id="line-301"></span><span id="platformSOExt"><span class="annot"><span class="annottext">platformSOExt :: Platform -&gt; String
+</span><a href="GHC.Platform.html#platformSOExt"><span class="hs-identifier hs-var hs-var">platformSOExt</span></a></span></span><span> </span><span id="local-6989586621682382585"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382585"><span class="hs-identifier hs-var">platform</span></a></span></span><span>
+</span><span id="line-302"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; OS
+</span><a href="GHC.Platform.html#platformOS"><span class="hs-identifier hs-var">platformOS</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682382585"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-303"></span><span>      </span><span class="annot"><span class="annottext">OS
+</span><span class="hs-identifier hs-var">OSDarwin</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;dylib&quot;</span></span><span>
+</span><span id="line-304"></span><span>      </span><span class="annot"><span class="annottext">OS
+</span><span class="hs-identifier hs-var">OSMinGW32</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;dll&quot;</span></span><span>
+</span><span id="line-305"></span><span>      </span><span class="annot"><span class="annottext">OS
+</span><span class="hs-identifier">_</span></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;so&quot;</span></span><span>
+</span><span id="line-306"></span><span>
+</span><span id="line-307"></span><span class="hs-comment">-- Note [Platform constants]</span><span>
+</span><span id="line-308"></span><span class="hs-comment">-- ~~~~~~~~~~~~~~~~~~~~~~~~~</span><span>
+</span><span id="line-309"></span><span class="hs-comment">--</span><span>
+</span><span id="line-310"></span><span class="hs-comment">-- The RTS is partly written in C, hence we use an external C compiler to build</span><span>
+</span><span id="line-311"></span><span class="hs-comment">-- it. Thus GHC must somehow retrieve some information about the produced code</span><span>
+</span><span id="line-312"></span><span class="hs-comment">-- (sizes of types, offsets of struct fields, etc.) to produce compatible code.</span><span>
+</span><span id="line-313"></span><span class="hs-comment">--</span><span>
+</span><span id="line-314"></span><span class="hs-comment">-- This is the role of utils/deriveConstants utility: it produces a C</span><span>
+</span><span id="line-315"></span><span class="hs-comment">-- source, compiles it with the same toolchain that will be used to build the</span><span>
+</span><span id="line-316"></span><span class="hs-comment">-- RTS, and finally retrieves the constants from the built artefact. We can't</span><span>
+</span><span id="line-317"></span><span class="hs-comment">-- directly run the produced program because we may be cross-compiling.</span><span>
+</span><span id="line-318"></span><span class="hs-comment">--</span><span>
+</span><span id="line-319"></span><span class="hs-comment">-- These constants are then stored in DerivedConstants.h header file that is</span><span>
+</span><span id="line-320"></span><span class="hs-comment">-- bundled with the RTS unit. This file is directly imported by Cmm codes and it</span><span>
+</span><span id="line-321"></span><span class="hs-comment">-- is also read by GHC. deriveConstants also produces the Haskell definition of</span><span>
+</span><span id="line-322"></span><span class="hs-comment">-- the PlatformConstants datatype and the Haskell parser for the</span><span>
+</span><span id="line-323"></span><span class="hs-comment">-- DerivedConstants.h file.</span><span>
+</span><span id="line-324"></span><span class="hs-comment">--</span><span>
+</span><span id="line-325"></span><span class="hs-comment">-- For quite some time, constants used by GHC were globally installed in</span><span>
+</span><span id="line-326"></span><span class="hs-comment">-- ${libdir}/platformConstants but now GHC reads the DerivedConstants.h header</span><span>
+</span><span id="line-327"></span><span class="hs-comment">-- bundled with the RTS unit. GHC detects when it builds the RTS unit itself and</span><span>
+</span><span id="line-328"></span><span class="hs-comment">-- in this case it loads the header from the include-dirs passed on the</span><span>
+</span><span id="line-329"></span><span class="hs-comment">-- command-line.</span><span>
+</span><span id="line-330"></span><span class="hs-comment">--</span><span>
+</span><span id="line-331"></span><span class="hs-comment">-- Note that GHC doesn't parse every &quot;#define SOME_CONSTANT 123&quot; individually.</span><span>
+</span><span id="line-332"></span><span class="hs-comment">-- Instead there is a single #define that contains all the constants useful to</span><span>
+</span><span id="line-333"></span><span class="hs-comment">-- GHC in a comma separated list:</span><span>
+</span><span id="line-334"></span><span class="hs-comment">--</span><span>
+</span><span id="line-335"></span><span class="hs-comment">--    #define HS_CONSTANTS &quot;123,45,...&quot;</span><span>
+</span><span id="line-336"></span><span class="hs-comment">--</span><span>
+</span><span id="line-337"></span><span class="hs-comment">-- Note that GHC mustn't directly import DerivedConstants.h as these constants</span><span>
+</span><span id="line-338"></span><span class="hs-comment">-- are only valid for a specific target platform and we want GHC to be target</span><span>
+</span><span id="line-339"></span><span class="hs-comment">-- agnostic.</span><span>
+</span><span id="line-340"></span><span class="hs-comment">--</span><span>
+</span><span id="line-341"></span><span>
+</span><span id="line-342"></span><span>
+</span><span id="line-343"></span><span class="hs-comment">-- | Try to locate &quot;DerivedConstants.h&quot; file in the given dirs and to parse the</span><span>
+</span><span id="line-344"></span><span class="hs-comment">-- PlatformConstants from it.</span><span>
+</span><span id="line-345"></span><span class="hs-comment">--</span><span>
+</span><span id="line-346"></span><span class="hs-comment">-- See Note [Platform constants]</span><span>
+</span><span id="line-347"></span><span class="annot"><a href="GHC.Platform.html#lookupPlatformConstants"><span class="hs-identifier hs-type">lookupPlatformConstants</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.Platform.Constants.html#PlatformConstants"><span class="hs-identifier hs-type">PlatformConstants</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-348"></span><span id="lookupPlatformConstants"><span class="annot"><span class="annottext">lookupPlatformConstants :: [String] -&gt; IO (Maybe PlatformConstants)
+</span><a href="GHC.Platform.html#lookupPlatformConstants"><span class="hs-identifier hs-var hs-var">lookupPlatformConstants</span></a></span></span><span> </span><span id="local-6989586621682382586"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682382586"><span class="hs-identifier hs-var">include_dirs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; IO (Maybe PlatformConstants)
+</span><a href="#local-6989586621682382587"><span class="hs-identifier hs-var">find_constants</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682382586"><span class="hs-identifier hs-var">include_dirs</span></a></span><span>
+</span><span id="line-349"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-350"></span><span>    </span><span id="local-6989586621682382593"><span class="annot"><span class="annottext">try_parse :: String -&gt; IO (Maybe PlatformConstants)
+</span><a href="#local-6989586621682382593"><span class="hs-identifier hs-var hs-var">try_parse</span></a></span></span><span> </span><span id="local-6989586621682382594"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682382594"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-351"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682382595"><span class="annot"><span class="annottext">p :: String
+</span><a href="#local-6989586621682382595"><span class="hs-identifier hs-var hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682382594"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="../../filepath-1.5.4.0-8591/src/System.FilePath.Posix.html#%3C%2F%3E"><span class="hs-operator hs-var">&lt;/&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DerivedConstants.h&quot;</span></span><span>
+</span><span id="line-352"></span><span>        </span><span class="annot"><span class="annottext">String -&gt; IO Bool
+</span><a href="../../directory-1.3.8.5-757a/src/System.Directory.html#doesFileExist"><span class="hs-identifier hs-var">doesFileExist</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682382595"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">IO Bool
+-&gt; (Bool -&gt; IO (Maybe PlatformConstants))
+-&gt; IO (Maybe PlatformConstants)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-353"></span><span>          </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PlatformConstants -&gt; Maybe PlatformConstants
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(PlatformConstants -&gt; Maybe PlatformConstants)
+-&gt; IO PlatformConstants -&gt; IO (Maybe PlatformConstants)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; IO PlatformConstants
+</span><a href="GHC.Platform.Constants.html#parseConstantsHeader"><span class="hs-identifier hs-var">parseConstantsHeader</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682382595"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-354"></span><span>          </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe PlatformConstants -&gt; IO (Maybe PlatformConstants)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe PlatformConstants
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-355"></span><span>
+</span><span id="line-356"></span><span>    </span><span id="local-6989586621682382587"><span class="annot"><span class="annottext">find_constants :: [String] -&gt; IO (Maybe PlatformConstants)
+</span><a href="#local-6989586621682382587"><span class="hs-identifier hs-var hs-var">find_constants</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe PlatformConstants -&gt; IO (Maybe PlatformConstants)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe PlatformConstants
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-357"></span><span>    </span><span class="annot"><a href="#local-6989586621682382587"><span class="hs-identifier hs-var">find_constants</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682382603"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682382603"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621682382604"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682382604"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO (Maybe PlatformConstants)
+</span><a href="#local-6989586621682382593"><span class="hs-identifier hs-var">try_parse</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682382603"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Maybe PlatformConstants)
+-&gt; (Maybe PlatformConstants -&gt; IO (Maybe PlatformConstants))
+-&gt; IO (Maybe PlatformConstants)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-358"></span><span>        </span><span class="annot"><span class="annottext">Maybe PlatformConstants
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; IO (Maybe PlatformConstants)
+</span><a href="#local-6989586621682382587"><span class="hs-identifier hs-var">find_constants</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682382604"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-359"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682382605"><span class="annot"><span class="annottext">PlatformConstants
+</span><a href="#local-6989586621682382605"><span class="hs-identifier hs-var">c</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe PlatformConstants -&gt; IO (Maybe PlatformConstants)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PlatformConstants -&gt; Maybe PlatformConstants
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">PlatformConstants
+</span><a href="#local-6989586621682382605"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-360"></span></pre></body></html>

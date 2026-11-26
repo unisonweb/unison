@@ -1,0 +1,502 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 706
+</span><span class="hs-pragma">{-# LANGUAGE PolyKinds #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 710 &amp;&amp; __GLASGOW_HASKELL__ &lt; 802
+</span><span class="hs-pragma">{-# LANGUAGE AutoDeriveTypeable #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Module      :  Data.Functor.Reverse</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Copyright   :  (c) Russell O'Connor 2009</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Maintainer  :  R.Paterson@city.ac.uk</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Making functors whose elements are notionally in the reverse order</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- from the original functor.</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Functor.Reverse.html"><span class="hs-identifier">Data.Functor.Reverse</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier">Reverse</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Applicative.Backwards.html"><span class="hs-identifier">Control.Applicative.Backwards</span></a></span><span class="hs-cpp">
+#if MIN_VERSION_base(4,18,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Foldable1.html"><span class="hs-identifier">Data.Foldable1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Foldable1.html#Foldable1"><span class="hs-identifier">Foldable1</span></a></span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Foldable1.html#foldMap1"><span class="hs-identifier">foldMap1</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html"><span class="hs-identifier">Data.Functor.Classes</span></a></span><span class="hs-cpp">
+#if MIN_VERSION_base(4,12,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Contravariant.html"><span class="hs-identifier">Data.Functor.Contravariant</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Prelude.html"><span class="hs-identifier">Prelude</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">foldr</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">foldr1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">foldl</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">foldl1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">null</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">length</span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Applicative.html"><span class="hs-identifier">Control.Applicative</span></a></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.html"><span class="hs-identifier">Control.Monad</span></a></span><span class="hs-cpp">
+#if MIN_VERSION_base(4,9,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.Fail.html"><span class="hs-identifier">Control.Monad.Fail</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Fail</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Foldable.html"><span class="hs-identifier">Data.Foldable</span></a></span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,8,0))
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Traversable</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Traversable</span><span class="hs-special">(</span><span class="hs-identifier">traverse</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Monoid.html"><span class="hs-identifier">Data.Monoid</span></a></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 704
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Generics.html"><span class="hs-identifier">GHC.Generics</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- | The same functor, but with 'Foldable' and 'Traversable' instances</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- that process the elements in the reverse order.</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">newtype</span><span> </span><span id="Reverse"><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-var">Reverse</span></a></span></span><span> </span><span id="local-6989586621679100781"><span class="annot"><a href="#local-6989586621679100781"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679100782"><span class="annot"><a href="#local-6989586621679100782"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Reverse"><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-var">Reverse</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="getReverse"><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (a :: k). Reverse f a -&gt; f a
+</span><a href="Data.Functor.Reverse.html#getReverse"><span class="hs-identifier hs-var hs-var">getReverse</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679100781"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100782"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 710
+</span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679101049"><span id="local-6989586621679101051"><span class="annot"><span class="annottext">(forall x. Reverse f a -&gt; Rep (Reverse f a) x)
+-&gt; (forall x. Rep (Reverse f a) x -&gt; Reverse f a)
+-&gt; Generic (Reverse f a)
+forall x. Rep (Reverse f a) x -&gt; Reverse f a
+forall x. Reverse f a -&gt; Rep (Reverse f a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall k (f :: k -&gt; *) (a :: k) x.
+Rep (Reverse f a) x -&gt; Reverse f a
+forall k (f :: k -&gt; *) (a :: k) x.
+Reverse f a -&gt; Rep (Reverse f a) x
+$cfrom :: forall k (f :: k -&gt; *) (a :: k) x.
+Reverse f a -&gt; Rep (Reverse f a) x
+from :: forall x. Reverse f a -&gt; Rep (Reverse f a) x
+$cto :: forall k (f :: k -&gt; *) (a :: k) x.
+Rep (Reverse f a) x -&gt; Reverse f a
+to :: forall x. Rep (Reverse f a) x -&gt; Reverse f a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679101057"><span id="local-6989586621679101059"><span class="annot"><span class="annottext">(forall (a :: k). Reverse f a -&gt; Rep1 (Reverse f) a)
+-&gt; (forall (a :: k). Rep1 (Reverse f) a -&gt; Reverse f a)
+-&gt; Generic1 (Reverse f)
+forall (a :: k). Rep1 (Reverse f) a -&gt; Reverse f a
+forall (a :: k). Reverse f a -&gt; Rep1 (Reverse f) a
+forall k (f :: k -&gt; *).
+(forall (a :: k). f a -&gt; Rep1 f a)
+-&gt; (forall (a :: k). Rep1 f a -&gt; f a) -&gt; Generic1 f
+forall k (f :: k -&gt; *) (a :: k). Rep1 (Reverse f) a -&gt; Reverse f a
+forall k (f :: k -&gt; *) (a :: k). Reverse f a -&gt; Rep1 (Reverse f) a
+$cfrom1 :: forall k (f :: k -&gt; *) (a :: k). Reverse f a -&gt; Rep1 (Reverse f) a
+from1 :: forall (a :: k). Reverse f a -&gt; Rep1 (Reverse f) a
+$cto1 :: forall k (f :: k -&gt; *) (a :: k). Rep1 (Reverse f) a -&gt; Reverse f a
+to1 :: forall (a :: k). Rep1 (Reverse f) a -&gt; Reverse f a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic1</span></span></span></span><span class="hs-special">)</span><span class="hs-cpp">
+#elif __GLASGOW_HASKELL__ &gt;= 704
+</span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Generic</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-63"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100810"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Eq1"><span class="hs-identifier hs-type">Eq1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100810"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Eq1"><span class="hs-identifier hs-type">Eq1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100810"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>    </span><span id="local-6989586621679101071"><span class="annot"><span class="annottext">liftEq :: forall a b. (a -&gt; b -&gt; Bool) -&gt; Reverse f a -&gt; Reverse f b -&gt; Bool
+</span><a href="#local-6989586621679101071"><span class="hs-identifier hs-var hs-var hs-var">liftEq</span></a></span></span><span> </span><span id="local-6989586621679101073"><span class="annot"><span class="annottext">a -&gt; b -&gt; Bool
+</span><a href="#local-6989586621679101073"><span class="hs-identifier hs-var">eq</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101074"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101074"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101075"><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679101075"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b -&gt; Bool) -&gt; f a -&gt; f b -&gt; Bool
+forall a b. (a -&gt; b -&gt; Bool) -&gt; f a -&gt; f b -&gt; Bool
+forall (f :: * -&gt; *) a b.
+Eq1 f =&gt;
+(a -&gt; b -&gt; Bool) -&gt; f a -&gt; f b -&gt; Bool
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftEq"><span class="hs-identifier hs-var">liftEq</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Bool
+</span><a href="#local-6989586621679101073"><span class="hs-identifier hs-var">eq</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101074"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679101075"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftEq"><span class="hs-pragma hs-type">liftEq</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100819"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Ord1"><span class="hs-identifier hs-type">Ord1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100819"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Ord1"><span class="hs-identifier hs-type">Ord1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100819"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>    </span><span id="local-6989586621679101087"><span class="annot"><span class="annottext">liftCompare :: forall a b.
+(a -&gt; b -&gt; Ordering) -&gt; Reverse f a -&gt; Reverse f b -&gt; Ordering
+</span><a href="#local-6989586621679101087"><span class="hs-identifier hs-var hs-var hs-var">liftCompare</span></a></span></span><span> </span><span id="local-6989586621679101089"><span class="annot"><span class="annottext">a -&gt; b -&gt; Ordering
+</span><a href="#local-6989586621679101089"><span class="hs-identifier hs-var">comp</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101090"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101090"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101091"><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679101091"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b -&gt; Ordering) -&gt; f a -&gt; f b -&gt; Ordering
+forall a b. (a -&gt; b -&gt; Ordering) -&gt; f a -&gt; f b -&gt; Ordering
+forall (f :: * -&gt; *) a b.
+Ord1 f =&gt;
+(a -&gt; b -&gt; Ordering) -&gt; f a -&gt; f b -&gt; Ordering
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftCompare"><span class="hs-identifier hs-var">liftCompare</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Ordering
+</span><a href="#local-6989586621679101089"><span class="hs-identifier hs-var">comp</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101090"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679101091"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftCompare"><span class="hs-pragma hs-type">liftCompare</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100832"><span id="local-6989586621679101097"><span id="local-6989586621679101101"><span id="local-6989586621679101104"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Read1"><span class="hs-identifier hs-type">Read1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100832"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Read1"><span class="hs-identifier hs-type">Read1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100832"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-72"></span><span>    </span><span id="local-6989586621679101108"><span class="annot"><span class="annottext">liftReadsPrec :: forall a.
+(Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; Int -&gt; ReadS (Reverse f a)
+</span><a href="#local-6989586621679101108"><span class="hs-identifier hs-var hs-var hs-var">liftReadsPrec</span></a></span></span><span> </span><span id="local-6989586621679101110"><span class="annot"><span class="annottext">Int -&gt; ReadS a
+</span><a href="#local-6989586621679101110"><span class="hs-identifier hs-var">rp</span></a></span></span><span> </span><span id="local-6989586621679101111"><span class="annot"><span class="annottext">ReadS [a]
+</span><a href="#local-6989586621679101111"><span class="hs-identifier hs-var">rl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; ReadS (Reverse f a)) -&gt; Int -&gt; ReadS (Reverse f a)
+forall a. (String -&gt; ReadS a) -&gt; Int -&gt; ReadS a
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#readsData"><span class="hs-identifier hs-var">readsData</span></a></span><span> </span><span class="annot"><span class="annottext">((String -&gt; ReadS (Reverse f a)) -&gt; Int -&gt; ReadS (Reverse f a))
+-&gt; (String -&gt; ReadS (Reverse f a)) -&gt; Int -&gt; ReadS (Reverse f a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-73"></span><span>        </span><span class="annot"><span class="annottext">(Int -&gt; ReadS (f a))
+-&gt; String -&gt; (f a -&gt; Reverse f a) -&gt; String -&gt; ReadS (Reverse f a)
+forall a t.
+(Int -&gt; ReadS a) -&gt; String -&gt; (a -&gt; t) -&gt; String -&gt; ReadS t
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#readsUnaryWith"><span class="hs-identifier hs-var">readsUnaryWith</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; Int -&gt; ReadS (f a)
+forall a. (Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; Int -&gt; ReadS (f a)
+forall (f :: * -&gt; *) a.
+Read1 f =&gt;
+(Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; Int -&gt; ReadS (f a)
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftReadsPrec"><span class="hs-identifier hs-var">liftReadsPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS a
+</span><a href="#local-6989586621679101110"><span class="hs-identifier hs-var">rp</span></a></span><span> </span><span class="annot"><span class="annottext">ReadS [a]
+</span><a href="#local-6989586621679101111"><span class="hs-identifier hs-var">rl</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Reverse&quot;</span></span><span> </span><span class="annot"><span class="annottext">f a -&gt; Reverse f a
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Reverse f a
+</span><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-var">Reverse</span></a></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100848"><span id="local-6989586621679101119"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Show1"><span class="hs-identifier hs-type">Show1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100848"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Show1"><span class="hs-identifier hs-type">Show1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100848"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>    </span><span id="local-6989586621679101124"><span class="annot"><span class="annottext">liftShowsPrec :: forall a.
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; Reverse f a -&gt; ShowS
+</span><a href="#local-6989586621679101124"><span class="hs-identifier hs-var hs-var hs-var">liftShowsPrec</span></a></span></span><span> </span><span id="local-6989586621679101126"><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+</span><a href="#local-6989586621679101126"><span class="hs-identifier hs-var">sp</span></a></span></span><span> </span><span id="local-6989586621679101127"><span class="annot"><span class="annottext">[a] -&gt; ShowS
+</span><a href="#local-6989586621679101127"><span class="hs-identifier hs-var">sl</span></a></span></span><span> </span><span id="local-6989586621679101128"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101128"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101129"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101129"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-77"></span><span>        </span><span class="annot"><span class="annottext">(Int -&gt; f a -&gt; ShowS) -&gt; String -&gt; Int -&gt; f a -&gt; ShowS
+forall a. (Int -&gt; a -&gt; ShowS) -&gt; String -&gt; Int -&gt; a -&gt; ShowS
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#showsUnaryWith"><span class="hs-identifier hs-var">showsUnaryWith</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; f a -&gt; ShowS
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; f a -&gt; ShowS
+forall (f :: * -&gt; *) a.
+Show1 f =&gt;
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; f a -&gt; ShowS
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftShowsPrec"><span class="hs-identifier hs-var">liftShowsPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+</span><a href="#local-6989586621679101126"><span class="hs-identifier hs-var">sp</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; ShowS
+</span><a href="#local-6989586621679101127"><span class="hs-identifier hs-var">sl</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Reverse&quot;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101128"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101129"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100854"><span id="local-6989586621679100855"><span id="local-6989586621679101135"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Eq1"><span class="hs-identifier hs-type">Eq1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100854"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679100855"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100854"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100855"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679101141"><span class="annot"><span class="annottext">== :: Reverse f a -&gt; Reverse f a -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">(==)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Reverse f a -&gt; Reverse f a -&gt; Bool
+forall (f :: * -&gt; *) a. (Eq1 f, Eq a) =&gt; f a -&gt; f a -&gt; Bool
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#eq1"><span class="hs-identifier hs-var">eq1</span></a></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100861"><span id="local-6989586621679100862"><span id="local-6989586621679101151"><span id="local-6989586621679101155"><span id="local-6989586621679101158"><span id="local-6989586621679101161"><span id="local-6989586621679101164"><span id="local-6989586621679101167"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Ord1"><span class="hs-identifier hs-type">Ord1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100861"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679100862"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100861"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100862"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679101173"><span class="annot"><span class="annottext">compare :: Reverse f a -&gt; Reverse f a -&gt; Ordering
+</span><a href="#local-6989586621679101173"><span class="hs-identifier hs-var hs-var hs-var">compare</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Reverse f a -&gt; Reverse f a -&gt; Ordering
+forall (f :: * -&gt; *) a. (Ord1 f, Ord a) =&gt; f a -&gt; f a -&gt; Ordering
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#compare1"><span class="hs-identifier hs-var">compare1</span></a></span><span>
+</span><span id="line-81"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100868"><span id="local-6989586621679100869"><span id="local-6989586621679101180"><span id="local-6989586621679101184"><span id="local-6989586621679101187"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Read1"><span class="hs-identifier hs-type">Read1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100868"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read</span></span><span> </span><span class="annot"><a href="#local-6989586621679100869"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100868"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100869"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679101192"><span class="annot"><span class="annottext">readsPrec :: Int -&gt; ReadS (Reverse f a)
+</span><a href="#local-6989586621679101192"><span class="hs-identifier hs-var hs-var hs-var">readsPrec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS (Reverse f a)
+forall (f :: * -&gt; *) a. (Read1 f, Read a) =&gt; Int -&gt; ReadS (f a)
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#readsPrec1"><span class="hs-identifier hs-var">readsPrec1</span></a></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100875"><span id="local-6989586621679100876"><span id="local-6989586621679101199"><span id="local-6989586621679101203"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Show1"><span class="hs-identifier hs-type">Show1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100875"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679100876"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100875"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100876"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679101208"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; Reverse f a -&gt; ShowS
+</span><a href="#local-6989586621679101208"><span class="hs-identifier hs-var hs-var hs-var">showsPrec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Reverse f a -&gt; ShowS
+forall (f :: * -&gt; *) a. (Show1 f, Show a) =&gt; Int -&gt; f a -&gt; ShowS
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#showsPrec1"><span class="hs-identifier hs-var">showsPrec1</span></a></span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="annot"><span class="hs-comment">-- | Derived instance.</span></span><span>
+</span><span id="line-85"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100885"><span id="local-6989586621679101214"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679100885"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100885"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>    </span><span id="local-6989586621679101219"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; Reverse f a -&gt; Reverse f b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679101220"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679101220"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101221"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101221"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f b -&gt; Reverse f b
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Reverse f a
+</span><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-var">Reverse</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; f a -&gt; f b
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679101220"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101221"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">fmap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="annot"><span class="hs-comment">-- | Derived instance.</span></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100900"><span id="local-6989586621679101229"><span id="local-6989586621679101233"><span id="local-6989586621679101236"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679100900"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100900"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-91"></span><span>    </span><span id="local-6989586621679101241"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; Reverse f a
+</span><span class="hs-identifier hs-var hs-var hs-var">pure</span></span></span><span> </span><span id="local-6989586621679101242"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679101242"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f a -&gt; Reverse f a
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Reverse f a
+</span><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-var">Reverse</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; f a
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679101242"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">pure</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-93"></span><span>    </span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101244"><span class="annot"><span class="annottext">f (a -&gt; b)
+</span><a href="#local-6989586621679101244"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679101245"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. Reverse f (a -&gt; b) -&gt; Reverse f a -&gt; Reverse f b
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;*&gt;</span></span></span><span> </span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101246"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101246"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f b -&gt; Reverse f b
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Reverse f a
+</span><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-var">Reverse</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f (a -&gt; b)
+</span><a href="#local-6989586621679101244"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f (a -&gt; b) -&gt; f a -&gt; f b
+forall a b. f (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101246"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">&lt;*&gt;</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="annot"><span class="hs-comment">-- | Derived instance.</span></span><span>
+</span><span id="line-97"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100910"><span id="local-6989586621679101254"><span id="local-6989586621679101258"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Alternative</span></span><span> </span><span class="annot"><a href="#local-6989586621679100910"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Alternative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100910"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-98"></span><span>    </span><span id="local-6989586621679101263"><span class="annot"><span class="annottext">empty :: forall a. Reverse f a
+</span><a href="#local-6989586621679101263"><span class="hs-identifier hs-var hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f a -&gt; Reverse f a
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Reverse f a
+</span><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-var">Reverse</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+forall a. f a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a
+</span><span class="hs-identifier hs-var">empty</span></span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">empty</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-100"></span><span>    </span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101266"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101266"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679101267"><span class="annot"><span class="annottext">&lt;|&gt; :: forall a. Reverse f a -&gt; Reverse f a -&gt; Reverse f a
+</span><a href="#local-6989586621679101267"><span class="hs-operator hs-var hs-var hs-var">&lt;|&gt;</span></a></span></span><span> </span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101269"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101269"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f a -&gt; Reverse f a
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Reverse f a
+</span><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-var">Reverse</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101266"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">f a -&gt; f a -&gt; f a
+forall a. f a -&gt; f a -&gt; f a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101269"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">&lt;|&gt;</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="annot"><span class="hs-comment">-- | Derived instance.</span></span><span>
+</span><span id="line-104"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100920"><span id="local-6989586621679101276"><span id="local-6989586621679101280"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679100920"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100920"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,8,0))
+</span><span>    </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Reverse</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">return</span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span><span>    </span><span id="local-6989586621679101285"><span class="annot"><span class="annottext">Reverse m a
+</span><a href="#local-6989586621679101285"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679101286"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b. Reverse m a -&gt; (a -&gt; Reverse m b) -&gt; Reverse m b
+</span><span class="hs-operator hs-var hs-var hs-var">&gt;&gt;=</span></span></span><span> </span><span id="local-6989586621679101287"><span class="annot"><span class="annottext">a -&gt; Reverse m b
+</span><a href="#local-6989586621679101287"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m b -&gt; Reverse m b
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Reverse f a
+</span><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-var">Reverse</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Reverse m a -&gt; m a
+forall {k} (f :: k -&gt; *) (a :: k). Reverse f a -&gt; f a
+</span><a href="Data.Functor.Reverse.html#getReverse"><span class="hs-identifier hs-var">getReverse</span></a></span><span> </span><span class="annot"><span class="annottext">Reverse m a
+</span><a href="#local-6989586621679101285"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">m a -&gt; (a -&gt; m b) -&gt; m b
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Reverse m b -&gt; m b
+forall {k} (f :: k -&gt; *) (a :: k). Reverse f a -&gt; f a
+</span><a href="Data.Functor.Reverse.html#getReverse"><span class="hs-identifier hs-var">getReverse</span></a></span><span> </span><span class="annot"><span class="annottext">(Reverse m b -&gt; m b) -&gt; (a -&gt; Reverse m b) -&gt; a -&gt; m b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Reverse m b
+</span><a href="#local-6989586621679101287"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">&gt;&gt;=</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,13,0))
+</span><span>    </span><span class="hs-identifier">fail</span><span> </span><span class="hs-identifier">msg</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Reverse</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fail</span><span> </span><span class="hs-identifier">msg</span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">fail</span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,9,0)
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100929"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Fail.MonadFail</span></span><span> </span><span class="annot"><a href="#local-6989586621679100929"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fail.MonadFail</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100929"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-118"></span><span>    </span><span id="local-6989586621679101298"><span class="annot"><span class="annottext">fail :: forall a. String -&gt; Reverse m a
+</span><span class="hs-identifier hs-var hs-var hs-var">fail</span></span></span><span> </span><span id="local-6989586621679101299"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679101299"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; Reverse m a
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Reverse f a
+</span><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-var">Reverse</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; m a
+forall a. String -&gt; m a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">Fail.fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679101299"><span class="hs-identifier hs-var">msg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">fail</span></span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-122"></span><span class="annot"><span class="hs-comment">-- | Derived instance.</span></span><span>
+</span><span id="line-123"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100936"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadPlus</span></span><span> </span><span class="annot"><a href="#local-6989586621679100936"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadPlus</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100936"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-124"></span><span>    </span><span id="local-6989586621679101314"><span class="annot"><span class="annottext">mzero :: forall a. Reverse m a
+</span><a href="#local-6989586621679101314"><span class="hs-identifier hs-var hs-var hs-var">mzero</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; Reverse m a
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Reverse f a
+</span><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-var">Reverse</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+forall a. m a
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span>
+</span><span id="line-125"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">mzero</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-126"></span><span>    </span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101317"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679101317"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679101318"><span class="annot"><span class="annottext">mplus :: forall a. Reverse m a -&gt; Reverse m a -&gt; Reverse m a
+</span><a href="#local-6989586621679101318"><span class="hs-operator hs-var hs-var hs-var">`mplus`</span></a></span></span><span> </span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101320"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679101320"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; Reverse m a
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Reverse f a
+</span><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-var">Reverse</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679101317"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">m a -&gt; m a -&gt; m a
+forall a. m a -&gt; m a -&gt; m a
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a -&gt; m a -&gt; m a
+</span><span class="hs-operator hs-var">`mplus`</span></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679101320"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">mplus</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="annot"><span class="hs-comment">-- | Fold from right to left.</span></span><span>
+</span><span id="line-130"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100962"><span id="local-6989586621679101323"><span id="local-6989586621679101330"><span id="local-6989586621679101336"><span id="local-6989586621679101340"><span id="local-6989586621679101345"><span id="local-6989586621679101350"><span id="local-6989586621679101355"><span id="local-6989586621679101360"><span id="local-6989586621679101365"><span id="local-6989586621679101370"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679100962"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100962"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-131"></span><span>    </span><span id="local-6989586621679101379"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Reverse f a -&gt; m
+</span><a href="#local-6989586621679101379"><span class="hs-identifier hs-var hs-var hs-var">foldMap</span></a></span></span><span> </span><span id="local-6989586621679101381"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679101381"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101382"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101382"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Dual m -&gt; m
+forall a. Dual a -&gt; a
+</span><span class="hs-identifier hs-var">getDual</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; Dual m) -&gt; f a -&gt; Dual m
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; f a -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m -&gt; Dual m
+forall a. a -&gt; Dual a
+</span><span class="hs-identifier hs-var">Dual</span></span><span> </span><span class="annot"><span class="annottext">(m -&gt; Dual m) -&gt; (a -&gt; m) -&gt; a -&gt; Dual m
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679101381"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101382"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">foldMap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-133"></span><span>    </span><span id="local-6989586621679101386"><span class="annot"><span class="annottext">foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Reverse f a -&gt; b
+</span><span class="hs-identifier hs-var hs-var hs-var">foldr</span></span></span><span> </span><span id="local-6989586621679101387"><span class="annot"><span class="annottext">a -&gt; b -&gt; b
+</span><a href="#local-6989586621679101387"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679101388"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679101388"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101389"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101389"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(b -&gt; a -&gt; b) -&gt; b -&gt; f a -&gt; b
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; f a -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b -&gt; b) -&gt; b -&gt; a -&gt; b
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; b
+</span><a href="#local-6989586621679101387"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679101388"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101389"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-134"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">foldr</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-135"></span><span>    </span><span id="local-6989586621679101392"><span class="annot"><span class="annottext">foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Reverse f a -&gt; b
+</span><span class="hs-identifier hs-var hs-var hs-var">foldl</span></span></span><span> </span><span id="local-6989586621679101393"><span class="annot"><span class="annottext">b -&gt; a -&gt; b
+</span><a href="#local-6989586621679101393"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679101394"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679101394"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101395"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101395"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b -&gt; b) -&gt; b -&gt; f a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; f a -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(b -&gt; a -&gt; b) -&gt; a -&gt; b -&gt; b
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; a -&gt; b
+</span><a href="#local-6989586621679101393"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679101394"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101395"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-136"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">foldl</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-137"></span><span>    </span><span id="local-6989586621679101397"><span class="annot"><span class="annottext">foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; Reverse f a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var">foldr1</span></span></span><span> </span><span id="local-6989586621679101398"><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+</span><a href="#local-6989586621679101398"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101399"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101399"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a -&gt; a) -&gt; f a -&gt; a
+forall a. (a -&gt; a -&gt; a) -&gt; f a -&gt; a
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; a -&gt; a) -&gt; t a -&gt; a
+</span><span class="hs-identifier hs-var">foldl1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; a -&gt; a) -&gt; a -&gt; a -&gt; a
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+</span><a href="#local-6989586621679101398"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101399"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-138"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">foldr1</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-139"></span><span>    </span><span id="local-6989586621679101401"><span class="annot"><span class="annottext">foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; Reverse f a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var">foldl1</span></span></span><span> </span><span id="local-6989586621679101402"><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+</span><a href="#local-6989586621679101402"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101403"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101403"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a -&gt; a) -&gt; f a -&gt; a
+forall a. (a -&gt; a -&gt; a) -&gt; f a -&gt; a
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; a -&gt; a) -&gt; t a -&gt; a
+</span><span class="hs-identifier hs-var">foldr1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; a -&gt; a) -&gt; a -&gt; a -&gt; a
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+</span><a href="#local-6989586621679101402"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101403"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-140"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">foldl1</span></span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,8,0)
+</span><span>    </span><span id="local-6989586621679101405"><span class="annot"><span class="annottext">null :: forall a. Reverse f a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var">null</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101406"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101406"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f a -&gt; Bool
+forall a. f a -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101406"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-143"></span><span>    </span><span id="local-6989586621679101408"><span class="annot"><span class="annottext">length :: forall a. Reverse f a -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var">length</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101409"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101409"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f a -&gt; Int
+forall a. f a -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101409"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,18,0)
+</span><span class="annot"><span class="hs-comment">-- | Fold from right to left.</span></span><span>
+</span><span id="line-148"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100998"><span id="local-6989586621679101415"><span id="local-6989586621679101422"><span id="local-6989586621679101427"><span id="local-6989586621679101430"><span id="local-6989586621679101435"><span id="local-6989586621679101440"><span id="local-6989586621679101443"><span id="local-6989586621679101446"><span id="local-6989586621679101449"><span id="local-6989586621679101452"><span id="local-6989586621679101455"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Foldable1.html#Foldable1"><span class="hs-identifier hs-type">Foldable1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100998"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Foldable1.html#Foldable1"><span class="hs-identifier hs-type">Foldable1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100998"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-149"></span><span>    </span><span id="local-6989586621679101463"><span class="annot"><span class="annottext">foldMap1 :: forall m a. Semigroup m =&gt; (a -&gt; m) -&gt; Reverse f a -&gt; m
+</span><a href="../../base-4.20.2.0-6654/src/Data.Foldable1.html#foldMap1"><span class="hs-identifier hs-var hs-var hs-var">foldMap1</span></a></span></span><span> </span><span id="local-6989586621679101464"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679101464"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101465"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101465"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Dual m -&gt; m
+forall a. Dual a -&gt; a
+</span><span class="hs-identifier hs-var">getDual</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; Dual m) -&gt; f a -&gt; Dual m
+forall m a. Semigroup m =&gt; (a -&gt; m) -&gt; f a -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable1 t, Semigroup m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><a href="../../base-4.20.2.0-6654/src/Data.Foldable1.html#foldMap1"><span class="hs-identifier hs-var">foldMap1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m -&gt; Dual m
+forall a. a -&gt; Dual a
+</span><span class="hs-identifier hs-var">Dual</span></span><span> </span><span class="annot"><span class="annottext">(m -&gt; Dual m) -&gt; (a -&gt; m) -&gt; a -&gt; Dual m
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679101464"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101465"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-152"></span><span class="annot"><span class="hs-comment">-- | Traverse from right to left.</span></span><span>
+</span><span id="line-153"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679101017"><span id="local-6989586621679101475"><span id="local-6989586621679101481"><span id="local-6989586621679101486"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679101017"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679101017"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-154"></span><span>    </span><span id="local-6989586621679101499"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Reverse f a -&gt; f (Reverse f b)
+</span><a href="#local-6989586621679101499"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679101501"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679101501"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span id="local-6989586621679101502"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101502"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-155"></span><span>        </span><span class="annot"><span class="annottext">(f b -&gt; Reverse f b) -&gt; f (f b) -&gt; f (Reverse f b)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">f b -&gt; Reverse f b
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Reverse f a
+</span><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-var">Reverse</span></a></span><span> </span><span class="annot"><span class="annottext">(f (f b) -&gt; f (Reverse f b))
+-&gt; (Backwards f (f b) -&gt; f (f b))
+-&gt; Backwards f (f b)
+-&gt; f (Reverse f b)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Backwards f (f b) -&gt; f (f b)
+forall {k} (f :: k -&gt; *) (a :: k). Backwards f a -&gt; f a
+</span><a href="Control.Applicative.Backwards.html#forwards"><span class="hs-identifier hs-var">forwards</span></a></span><span> </span><span class="annot"><span class="annottext">(Backwards f (f b) -&gt; f (Reverse f b))
+-&gt; Backwards f (f b) -&gt; f (Reverse f b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Backwards f b) -&gt; f a -&gt; Backwards f (f b)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; f a -&gt; f (f b)
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f b -&gt; Backwards f b
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Backwards f a
+</span><a href="Control.Applicative.Backwards.html#Backwards"><span class="hs-identifier hs-var">Backwards</span></a></span><span> </span><span class="annot"><span class="annottext">(f b -&gt; Backwards f b) -&gt; (a -&gt; f b) -&gt; a -&gt; Backwards f b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679101501"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679101502"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">traverse</span></span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,12,0)
+</span><span class="annot"><span class="hs-comment">-- | Derived instance.</span></span><span>
+</span><span id="line-160"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679101036"><span id="local-6989586621679101508"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Contravariant.html#Contravariant"><span class="hs-identifier hs-type">Contravariant</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679101036"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Contravariant.html#Contravariant"><span class="hs-identifier hs-type">Contravariant</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-type">Reverse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679101036"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-161"></span><span>    </span><span id="local-6989586621679101513"><span class="annot"><span class="annottext">contramap :: forall a' a. (a' -&gt; a) -&gt; Reverse f a -&gt; Reverse f a'
+</span><a href="#local-6989586621679101513"><span class="hs-identifier hs-var hs-var hs-var">contramap</span></a></span></span><span> </span><span id="local-6989586621679101515"><span class="annot"><span class="annottext">a' -&gt; a
+</span><a href="#local-6989586621679101515"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f a' -&gt; Reverse f a'
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Reverse f a
+</span><a href="Data.Functor.Reverse.html#Reverse"><span class="hs-identifier hs-var">Reverse</span></a></span><span> </span><span class="annot"><span class="annottext">(f a' -&gt; Reverse f a')
+-&gt; (Reverse f a -&gt; f a') -&gt; Reverse f a -&gt; Reverse f a'
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a' -&gt; a) -&gt; f a -&gt; f a'
+forall a' a. (a' -&gt; a) -&gt; f a -&gt; f a'
+forall (f :: * -&gt; *) a' a.
+Contravariant f =&gt;
+(a' -&gt; a) -&gt; f a -&gt; f a'
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Contravariant.html#contramap"><span class="hs-identifier hs-var">contramap</span></a></span><span> </span><span class="annot"><span class="annottext">a' -&gt; a
+</span><a href="#local-6989586621679101515"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(f a -&gt; f a') -&gt; (Reverse f a -&gt; f a) -&gt; Reverse f a -&gt; f a'
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Reverse f a -&gt; f a
+forall {k} (f :: k -&gt; *) (a :: k). Reverse f a -&gt; f a
+</span><a href="Data.Functor.Reverse.html#getReverse"><span class="hs-identifier hs-var">getReverse</span></a></span><span>
+</span><span id="line-162"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Contravariant.html#contramap"><span class="hs-pragma hs-type">contramap</span></a></span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

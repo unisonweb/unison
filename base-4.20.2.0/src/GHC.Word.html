@@ -1,0 +1,72 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK not-home #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Module      :  GHC.Word</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow, 1997-2002</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- License     :  see libraries/base/LICENSE</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Maintainer  :  ghc-devs@haskell.org</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Stability   :  internal</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Portability :  non-portable (GHC Extensions)</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Sized unsigned integral types: 'Word', 'Word8', 'Word16', 'Word32', and</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- 'Word64'.</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Word.html"><span class="hs-identifier">GHC.Word</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Word"><span class="hs-identifier">Word</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#Word8"><span class="hs-identifier">Word8</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#Word16"><span class="hs-identifier">Word16</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#Word32"><span class="hs-identifier">Word32</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#Word64"><span class="hs-identifier">Word64</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Shifts</span></span><span>
+</span><span id="line-26"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#uncheckedShiftL64%23"><span class="hs-identifier">uncheckedShiftL64#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#uncheckedShiftRL64%23"><span class="hs-identifier">uncheckedShiftRL64#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Byte swapping</span></span><span>
+</span><span id="line-29"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#byteSwap16"><span class="hs-identifier">byteSwap16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#byteSwap32"><span class="hs-identifier">byteSwap32</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#byteSwap64"><span class="hs-identifier">byteSwap64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Bit reversal</span></span><span>
+</span><span id="line-33"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#bitReverse8"><span class="hs-identifier">bitReverse8</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#bitReverse16"><span class="hs-identifier">bitReverse16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#bitReverse32"><span class="hs-identifier">bitReverse32</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#bitReverse64"><span class="hs-identifier">bitReverse64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Equality operators</span></span><span>
+</span><span id="line-38"></span><span>     </span><span class="annot"><span class="hs-comment">-- |  See GHC.Classes#matching_overloaded_methods_in_rules</span></span><span>
+</span><span id="line-39"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#eqWord"><span class="hs-identifier">eqWord</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#neWord"><span class="hs-identifier">neWord</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#gtWord"><span class="hs-identifier">gtWord</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#geWord"><span class="hs-identifier">geWord</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#ltWord"><span class="hs-identifier">ltWord</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#leWord"><span class="hs-identifier">leWord</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#eqWord8"><span class="hs-identifier">eqWord8</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#neWord8"><span class="hs-identifier">neWord8</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#gtWord8"><span class="hs-identifier">gtWord8</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#geWord8"><span class="hs-identifier">geWord8</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#ltWord8"><span class="hs-identifier">ltWord8</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#leWord8"><span class="hs-identifier">leWord8</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#eqWord16"><span class="hs-identifier">eqWord16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#neWord16"><span class="hs-identifier">neWord16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#gtWord16"><span class="hs-identifier">gtWord16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#geWord16"><span class="hs-identifier">geWord16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#ltWord16"><span class="hs-identifier">ltWord16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#leWord16"><span class="hs-identifier">leWord16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#eqWord32"><span class="hs-identifier">eqWord32</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#neWord32"><span class="hs-identifier">neWord32</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#gtWord32"><span class="hs-identifier">gtWord32</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#geWord32"><span class="hs-identifier">geWord32</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-61"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#ltWord32"><span class="hs-identifier">ltWord32</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#leWord32"><span class="hs-identifier">leWord32</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#eqWord64"><span class="hs-identifier">eqWord64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#neWord64"><span class="hs-identifier">neWord64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#gtWord64"><span class="hs-identifier">gtWord64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#geWord64"><span class="hs-identifier">geWord64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#ltWord64"><span class="hs-identifier">ltWord64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html#leWord64"><span class="hs-identifier">leWord64</span></a></span><span>
+</span><span id="line-69"></span><span>     </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Word.html"><span class="hs-identifier">GHC.Internal.Word</span></a></span><span>
+</span><span id="line-72"></span></pre></body></html>

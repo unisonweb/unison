@@ -1,0 +1,45 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      :  GHC.StaticPtr</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Copyright   :  (C) 2014 I/O Tweag</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- License     :  see libraries/base/LICENSE</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Maintainer  :  ghc-devs@haskell.org</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Stability   :  internal</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Portability :  non-portable (GHC Extensions)</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Symbolic references to values.</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- References to values are usually implemented with memory addresses, and this</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- is practical when communicating values between the different pieces of a</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- single process.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- When values are communicated across different processes running in possibly</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- different machines, though, addresses are no longer useful since each</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- process may use different addresses to store a given value.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- To solve such concern, the references provided by this module offer a key</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- that can be used to locate the values on each process. Each process maintains</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- a global table of references which can be looked up with a given key. This</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- table is known as the Static Pointer Table. The reference can then be</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- dereferenced to obtain the value.</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- The various communicating processes need to agree on the keys used to refer</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- to the values in the Static Pointer Table, or lookups will fail. Only</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- processes launched from the same program binary are guaranteed to use the</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- same set of keys.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.StaticPtr.html"><span class="hs-identifier">GHC.StaticPtr</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.StaticPtr.html#StaticPtr"><span class="hs-identifier">StaticPtr</span></a></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.StaticPtr.html#deRefStaticPtr"><span class="hs-identifier">deRefStaticPtr</span></a></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.StaticPtr.html#StaticKey"><span class="hs-identifier">StaticKey</span></a></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.StaticPtr.html#staticKey"><span class="hs-identifier">staticKey</span></a></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.StaticPtr.html#unsafeLookupStaticPtr"><span class="hs-identifier">unsafeLookupStaticPtr</span></a></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.StaticPtr.html#StaticPtrInfo"><span class="hs-identifier">StaticPtrInfo</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.StaticPtr.html#staticPtrInfo"><span class="hs-identifier">staticPtrInfo</span></a></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.StaticPtr.html#staticPtrKeys"><span class="hs-identifier">staticPtrKeys</span></a></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.StaticPtr.html#IsStatic"><span class="hs-identifier">IsStatic</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.StaticPtr.html"><span class="hs-identifier">GHC.Internal.StaticPtr</span></a></span><span>
+</span><span id="line-45"></span></pre></body></html>

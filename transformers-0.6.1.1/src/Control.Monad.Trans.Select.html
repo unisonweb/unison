@@ -1,0 +1,404 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 706
+</span><span class="hs-pragma">{-# LANGUAGE PolyKinds #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 710 &amp;&amp; __GLASGOW_HASKELL__ &lt; 802
+</span><span class="hs-pragma">{-# LANGUAGE AutoDeriveTypeable #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Module      :  Control.Monad.Trans.Select</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Copyright   :  (c) Ross Paterson 2017</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Maintainer  :  R.Paterson@city.ac.uk</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Selection monad transformer, modelling search algorithms.</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- * Martin Escardo and Paulo Oliva.</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--   &quot;Selection functions, bar recursion and backward induction&quot;,</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--   /Mathematical Structures in Computer Science/ 20:2 (2010), pp. 127-168.</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--   &lt;https://www.cs.bham.ac.uk/~mhe/papers/selection-escardo-oliva.pdf&gt;</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- * Jules Hedges. &quot;Monad transformers for backtracking search&quot;.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--   In /Proceedings of MSFP 2014/. &lt;https://arxiv.org/abs/1406.2058&gt;</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html"><span class="hs-identifier">Control.Monad.Trans.Select</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="hs-comment">-- * The Select monad</span></span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Select.html#Select"><span class="hs-identifier">Select</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Select.html#select"><span class="hs-identifier">select</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Select.html#runSelect"><span class="hs-identifier">runSelect</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Select.html#mapSelect"><span class="hs-identifier">mapSelect</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><span class="hs-comment">-- * The SelectT monad transformer</span></span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier">SelectT</span></a></span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier">SelectT</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Select.html#runSelectT"><span class="hs-identifier">runSelectT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Select.html#mapSelectT"><span class="hs-identifier">mapSelectT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Monad transformation</span></span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Select.html#selectToContT"><span class="hs-identifier">selectToContT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html"><span class="hs-identifier">Control.Monad.IO.Class</span></a></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Class.html"><span class="hs-identifier">Control.Monad.Trans.Class</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Cont.html"><span class="hs-identifier">Control.Monad.Trans.Cont</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Applicative.html"><span class="hs-identifier">Control.Applicative</span></a></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.html"><span class="hs-identifier">Control.Monad</span></a></span><span class="hs-cpp">
+#if MIN_VERSION_base(4,9,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.Fail.html"><span class="hs-identifier">Control.Monad.Fail</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Fail</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Identity.html"><span class="hs-identifier">Data.Functor.Identity</span></a></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 704
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Generics.html"><span class="hs-identifier">GHC.Generics</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-61"></span><span class="annot"><span class="hs-comment">-- | Selection monad.</span></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">type</span><span> </span><span id="Select"><span class="annot"><a href="Control.Monad.Trans.Select.html#Select"><span class="hs-identifier hs-var">Select</span></a></span></span><span> </span><span id="local-6989586621679094713"><span class="annot"><a href="#local-6989586621679094713"><span class="hs-identifier hs-type">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094713"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="annot"><span class="hs-comment">-- | Constructor for computations in the selection monad.</span></span><span>
+</span><span id="line-65"></span><span id="local-6989586621679094554"><span id="local-6989586621679094555"><span class="annot"><a href="Control.Monad.Trans.Select.html#select"><span class="hs-identifier hs-type">select</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679094554"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679094555"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679094554"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#Select"><span class="hs-identifier hs-type">Select</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094555"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094554"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-66"></span><span id="select"><span class="annot"><span class="annottext">select :: forall a r. ((a -&gt; r) -&gt; a) -&gt; Select r a
+</span><a href="Control.Monad.Trans.Select.html#select"><span class="hs-identifier hs-var hs-var">select</span></a></span></span><span> </span><span id="local-6989586621679094714"><span class="annot"><span class="annottext">(a -&gt; r) -&gt; a
+</span><a href="#local-6989586621679094714"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; Identity r) -&gt; Identity a) -&gt; SelectT r Identity a
+forall r (m :: * -&gt; *) a. ((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a
+</span><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-var">SelectT</span></a></span><span> </span><span class="annot"><span class="annottext">(((a -&gt; Identity r) -&gt; Identity a) -&gt; SelectT r Identity a)
+-&gt; ((a -&gt; Identity r) -&gt; Identity a) -&gt; SelectT r Identity a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679094715"><span class="annot"><span class="annottext">a -&gt; Identity r
+</span><a href="#local-6989586621679094715"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Identity a
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; r) -&gt; a
+</span><a href="#local-6989586621679094714"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Identity r -&gt; r
+forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span> </span><span class="annot"><span class="annottext">(Identity r -&gt; r) -&gt; (a -&gt; Identity r) -&gt; a -&gt; r
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Identity r
+</span><a href="#local-6989586621679094715"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#select"><span class="hs-pragma hs-type">select</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- | Runs a @Select@ computation with a function for evaluating answers</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- to select a particular answer.  (The inverse of 'select'.)</span><span>
+</span><span id="line-71"></span><span id="local-6989586621679094573"><span id="local-6989586621679094574"><span class="annot"><a href="Control.Monad.Trans.Select.html#runSelect"><span class="hs-identifier hs-type">runSelect</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#Select"><span class="hs-identifier hs-type">Select</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094573"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094574"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679094574"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679094573"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679094574"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-72"></span><span id="runSelect"><span class="annot"><span class="annottext">runSelect :: forall r a. Select r a -&gt; (a -&gt; r) -&gt; a
+</span><a href="Control.Monad.Trans.Select.html#runSelect"><span class="hs-identifier hs-var hs-var">runSelect</span></a></span></span><span> </span><span id="local-6989586621679094719"><span class="annot"><span class="annottext">Select r a
+</span><a href="#local-6989586621679094719"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679094720"><span class="annot"><span class="annottext">a -&gt; r
+</span><a href="#local-6989586621679094720"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity a -&gt; a
+forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Select r a -&gt; (a -&gt; Identity r) -&gt; Identity a
+forall r (m :: * -&gt; *) a. SelectT r m a -&gt; (a -&gt; m r) -&gt; m a
+</span><a href="Control.Monad.Trans.Select.html#runSelectT"><span class="hs-identifier hs-var">runSelectT</span></a></span><span> </span><span class="annot"><span class="annottext">Select r a
+</span><a href="#local-6989586621679094719"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">r -&gt; Identity r
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span> </span><span class="annot"><span class="annottext">(r -&gt; Identity r) -&gt; (a -&gt; r) -&gt; a -&gt; Identity r
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; r
+</span><a href="#local-6989586621679094720"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#runSelect"><span class="hs-pragma hs-type">runSelect</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- | Apply a function to transform the result of a selection computation.</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- * @'runSelect' ('mapSelect' f m) = f . 'runSelect' m@</span><span>
+</span><span id="line-78"></span><span id="local-6989586621679094580"><span id="local-6989586621679094581"><span class="annot"><a href="Control.Monad.Trans.Select.html#mapSelect"><span class="hs-identifier hs-type">mapSelect</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679094580"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679094580"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#Select"><span class="hs-identifier hs-type">Select</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094581"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094580"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#Select"><span class="hs-identifier hs-type">Select</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094581"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094580"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-79"></span><span id="mapSelect"><span class="annot"><span class="annottext">mapSelect :: forall a r. (a -&gt; a) -&gt; Select r a -&gt; Select r a
+</span><a href="Control.Monad.Trans.Select.html#mapSelect"><span class="hs-identifier hs-var hs-var">mapSelect</span></a></span></span><span> </span><span id="local-6989586621679094721"><span class="annot"><span class="annottext">a -&gt; a
+</span><a href="#local-6989586621679094721"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Identity a -&gt; Identity a)
+-&gt; SelectT r Identity a -&gt; SelectT r Identity a
+forall (m :: * -&gt; *) a r.
+(m a -&gt; m a) -&gt; SelectT r m a -&gt; SelectT r m a
+</span><a href="Control.Monad.Trans.Select.html#mapSelectT"><span class="hs-identifier hs-var">mapSelectT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Identity a
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Identity a) -&gt; (Identity a -&gt; a) -&gt; Identity a -&gt; Identity a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+</span><a href="#local-6989586621679094721"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; a) -&gt; (Identity a -&gt; a) -&gt; Identity a -&gt; a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Identity a -&gt; a
+forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#mapSelect"><span class="hs-pragma hs-type">mapSelect</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- | Selection monad transformer.</span><span>
+</span><span id="line-83"></span><span class="hs-comment">--</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- 'SelectT' is not a functor on the category of monads, and many operations</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- cannot be lifted through it.</span><span>
+</span><span id="line-86"></span><span class="hs-keyword">newtype</span><span> </span><span id="SelectT"><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-var">SelectT</span></a></span></span><span> </span><span id="local-6989586621679094563"><span class="annot"><a href="#local-6989586621679094563"><span class="hs-identifier hs-type">r</span></a></span></span><span> </span><span id="local-6989586621679094562"><span class="annot"><a href="#local-6989586621679094562"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679094561"><span class="annot"><a href="#local-6989586621679094561"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SelectT"><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-var">SelectT</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679094561"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679094562"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094563"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679094562"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094561"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 704
+</span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679094723"><span id="local-6989586621679094725"><span class="annot"><span class="annottext">(forall x. SelectT r m a -&gt; Rep (SelectT r m a) x)
+-&gt; (forall x. Rep (SelectT r m a) x -&gt; SelectT r m a)
+-&gt; Generic (SelectT r m a)
+forall x. Rep (SelectT r m a) x -&gt; SelectT r m a
+forall x. SelectT r m a -&gt; Rep (SelectT r m a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall r (m :: * -&gt; *) a x. Rep (SelectT r m a) x -&gt; SelectT r m a
+forall r (m :: * -&gt; *) a x. SelectT r m a -&gt; Rep (SelectT r m a) x
+$cfrom :: forall r (m :: * -&gt; *) a x. SelectT r m a -&gt; Rep (SelectT r m a) x
+from :: forall x. SelectT r m a -&gt; Rep (SelectT r m a) x
+$cto :: forall r (m :: * -&gt; *) a x. Rep (SelectT r m a) x -&gt; SelectT r m a
+to :: forall x. Rep (SelectT r m a) x -&gt; SelectT r m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- | Runs a @SelectT@ computation with a function for evaluating answers</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- to select a particular answer.  (The inverse of 'select'.)</span><span>
+</span><span id="line-93"></span><span id="local-6989586621679094577"><span id="local-6989586621679094578"><span id="local-6989586621679094579"><span class="annot"><a href="Control.Monad.Trans.Select.html#runSelectT"><span class="hs-identifier hs-type">runSelectT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094577"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094578"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094579"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679094579"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679094578"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094577"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679094578"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094579"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-94"></span><span id="runSelectT"><span class="annot"><span class="annottext">runSelectT :: forall r (m :: * -&gt; *) a. SelectT r m a -&gt; (a -&gt; m r) -&gt; m a
+</span><a href="Control.Monad.Trans.Select.html#runSelectT"><span class="hs-identifier hs-var hs-var">runSelectT</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span id="local-6989586621679094730"><span class="annot"><span class="annottext">(a -&gt; m r) -&gt; m a
+</span><a href="#local-6989586621679094730"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; m r) -&gt; m a
+</span><a href="#local-6989586621679094730"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-95"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#runSelectT"><span class="hs-pragma hs-type">runSelectT</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- | Apply a function to transform the result of a selection computation.</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- This has a more restricted type than the @map@ operations for other</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- monad transformers, because 'SelectT' does not define a functor in</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- the category of monads.</span><span>
+</span><span id="line-101"></span><span class="hs-comment">--</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- * @'runSelectT' ('mapSelectT' f m) = f . 'runSelectT' m@</span><span>
+</span><span id="line-103"></span><span id="local-6989586621679094584"><span id="local-6989586621679094585"><span id="local-6989586621679094586"><span class="annot"><a href="Control.Monad.Trans.Select.html#mapSelectT"><span class="hs-identifier hs-type">mapSelectT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679094584"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094585"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679094584"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094585"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094586"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094584"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094585"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094586"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094584"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094585"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-104"></span><span id="mapSelectT"><span class="annot"><span class="annottext">mapSelectT :: forall (m :: * -&gt; *) a r.
+(m a -&gt; m a) -&gt; SelectT r m a -&gt; SelectT r m a
+</span><a href="Control.Monad.Trans.Select.html#mapSelectT"><span class="hs-identifier hs-var hs-var">mapSelectT</span></a></span></span><span> </span><span id="local-6989586621679094731"><span class="annot"><span class="annottext">m a -&gt; m a
+</span><a href="#local-6989586621679094731"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679094732"><span class="annot"><span class="annottext">SelectT r m a
+</span><a href="#local-6989586621679094732"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a
+forall r (m :: * -&gt; *) a. ((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a
+</span><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-var">SelectT</span></a></span><span> </span><span class="annot"><span class="annottext">(((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a)
+-&gt; ((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">m a -&gt; m a
+</span><a href="#local-6989586621679094731"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; m a) -&gt; ((a -&gt; m r) -&gt; m a) -&gt; (a -&gt; m r) -&gt; m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">SelectT r m a -&gt; (a -&gt; m r) -&gt; m a
+forall r (m :: * -&gt; *) a. SelectT r m a -&gt; (a -&gt; m r) -&gt; m a
+</span><a href="Control.Monad.Trans.Select.html#runSelectT"><span class="hs-identifier hs-var">runSelectT</span></a></span><span> </span><span class="annot"><span class="annottext">SelectT r m a
+</span><a href="#local-6989586621679094732"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-105"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#mapSelectT"><span class="hs-pragma hs-type">mapSelectT</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679094609"><span id="local-6989586621679094610"><span id="local-6989586621679094736"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679094609"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094610"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094609"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621679094741"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; SelectT r m a -&gt; SelectT r m b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679094742"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679094742"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span id="local-6989586621679094743"><span class="annot"><span class="annottext">(a -&gt; m r) -&gt; m a
+</span><a href="#local-6989586621679094743"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((b -&gt; m r) -&gt; m b) -&gt; SelectT r m b
+forall r (m :: * -&gt; *) a. ((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a
+</span><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-var">SelectT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; m a -&gt; m b
+forall a b. (a -&gt; b) -&gt; m a -&gt; m b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679094742"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; m b) -&gt; ((b -&gt; m r) -&gt; m a) -&gt; (b -&gt; m r) -&gt; m b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; m r) -&gt; m a
+</span><a href="#local-6989586621679094743"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">((a -&gt; m r) -&gt; m a)
+-&gt; ((b -&gt; m r) -&gt; a -&gt; m r) -&gt; (b -&gt; m r) -&gt; m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(b -&gt; m r) -&gt; (a -&gt; b) -&gt; a -&gt; m r
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679094742"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">fmap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679094627"><span id="local-6989586621679094628"><span id="local-6989586621679094751"><span id="local-6989586621679094756"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679094627"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679094627"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094628"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094627"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-112"></span><span>    </span><span id="local-6989586621679094765"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; SelectT r m a
+</span><span class="hs-identifier hs-var hs-var hs-var">pure</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; SelectT r m a
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; SelectT r m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><a href="Control.Monad.Trans.Class.html#lift"><span class="hs-identifier hs-var">lift</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; SelectT r m a) -&gt; (a -&gt; m a) -&gt; a -&gt; SelectT r m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m a
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-113"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">pure</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-114"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span id="local-6989586621679094769"><span class="annot"><span class="annottext">((a -&gt; b) -&gt; m r) -&gt; m (a -&gt; b)
+</span><a href="#local-6989586621679094769"><span class="hs-identifier hs-var">gf</span></a></span></span><span> </span><span id="local-6989586621679094770"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. SelectT r m (a -&gt; b) -&gt; SelectT r m a -&gt; SelectT r m b
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;*&gt;</span></span></span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span id="local-6989586621679094771"><span class="annot"><span class="annottext">(a -&gt; m r) -&gt; m a
+</span><a href="#local-6989586621679094771"><span class="hs-identifier hs-var">gx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((b -&gt; m r) -&gt; m b) -&gt; SelectT r m b
+forall r (m :: * -&gt; *) a. ((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a
+</span><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-var">SelectT</span></a></span><span> </span><span class="annot"><span class="annottext">(((b -&gt; m r) -&gt; m b) -&gt; SelectT r m b)
+-&gt; ((b -&gt; m r) -&gt; m b) -&gt; SelectT r m b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679094772"><span class="annot"><span class="annottext">b -&gt; m r
+</span><a href="#local-6989586621679094772"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-115"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679094776"><span class="annot"><span class="annottext">h :: (a -&gt; b) -&gt; m b
+</span><a href="#local-6989586621679094776"><span class="hs-identifier hs-var hs-var hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679094777"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679094777"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; m a -&gt; m b
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679094777"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; m r) -&gt; m a
+</span><a href="#local-6989586621679094771"><span class="hs-identifier hs-var">gx</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; m r
+</span><a href="#local-6989586621679094772"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; m r) -&gt; (a -&gt; b) -&gt; a -&gt; m r
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679094777"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>        </span><span id="local-6989586621679094779"><span class="annot"><a href="#local-6989586621679094779"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">((a -&gt; b) -&gt; m r) -&gt; m (a -&gt; b)
+</span><a href="#local-6989586621679094769"><span class="hs-identifier hs-var">gf</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">m b -&gt; (b -&gt; m r) -&gt; m r
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; m r
+</span><a href="#local-6989586621679094772"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(m b -&gt; m r) -&gt; ((a -&gt; b) -&gt; m b) -&gt; (a -&gt; b) -&gt; m r
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; m b
+</span><a href="#local-6989586621679094776"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>        </span><span class="annot"><a href="#local-6989586621679094776"><span class="hs-identifier hs-type">h</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094779"><span class="hs-identifier hs-type">f</span></a></span><span>
+</span><span id="line-118"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">&lt;*&gt;</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-119"></span><span>    </span><span id="local-6989586621679094782"><span class="annot"><span class="annottext">SelectT r m a
+</span><a href="#local-6989586621679094782"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679094783"><span class="annot"><span class="annottext">*&gt; :: forall a b. SelectT r m a -&gt; SelectT r m b -&gt; SelectT r m b
+</span><span class="hs-operator hs-var hs-var hs-var">*&gt;</span></span></span><span> </span><span id="local-6989586621679094784"><span class="annot"><span class="annottext">SelectT r m b
+</span><a href="#local-6989586621679094784"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SelectT r m a
+</span><a href="#local-6989586621679094782"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">SelectT r m a -&gt; (a -&gt; SelectT r m b) -&gt; SelectT r m b
+forall a b. SelectT r m a -&gt; (a -&gt; SelectT r m b) -&gt; SelectT r m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SelectT r m b
+</span><a href="#local-6989586621679094784"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-120"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">*&gt;</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679094656"><span id="local-6989586621679094657"><span id="local-6989586621679094793"><span id="local-6989586621679094797"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679094656"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadPlus</span></span><span> </span><span class="annot"><a href="#local-6989586621679094656"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Alternative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094657"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094656"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-123"></span><span>    </span><span id="local-6989586621679094803"><span class="annot"><span class="annottext">empty :: forall a. SelectT r m a
+</span><a href="#local-6989586621679094803"><span class="hs-identifier hs-var hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SelectT r m a
+forall a. SelectT r m a
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span>
+</span><span id="line-124"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">empty</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-125"></span><span>    </span><span id="local-6989586621679094807"><span class="annot"><span class="annottext">&lt;|&gt; :: forall a. SelectT r m a -&gt; SelectT r m a -&gt; SelectT r m a
+</span><a href="#local-6989586621679094807"><span class="hs-operator hs-var hs-var hs-var">(&lt;|&gt;)</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SelectT r m a -&gt; SelectT r m a -&gt; SelectT r m a
+forall a. SelectT r m a -&gt; SelectT r m a -&gt; SelectT r m a
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">mplus</span></span><span>
+</span><span id="line-126"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">&lt;|&gt;</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679094643"><span id="local-6989586621679094644"><span id="local-6989586621679094816"><span id="local-6989586621679094819"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679094643"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094644"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094643"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,8,0))
+</span><span>    </span><span class="hs-identifier">return</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">lift</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">return</span><span>
+</span><span id="line-131"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">return</span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span id="local-6989586621679094826"><span class="annot"><span class="annottext">(a -&gt; m r) -&gt; m a
+</span><a href="#local-6989586621679094826"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679094827"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b. SelectT r m a -&gt; (a -&gt; SelectT r m b) -&gt; SelectT r m b
+</span><span class="hs-operator hs-var hs-var hs-var">&gt;&gt;=</span></span></span><span> </span><span id="local-6989586621679094828"><span class="annot"><span class="annottext">a -&gt; SelectT r m b
+</span><a href="#local-6989586621679094828"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((b -&gt; m r) -&gt; m b) -&gt; SelectT r m b
+forall r (m :: * -&gt; *) a. ((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a
+</span><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-var">SelectT</span></a></span><span> </span><span class="annot"><span class="annottext">(((b -&gt; m r) -&gt; m b) -&gt; SelectT r m b)
+-&gt; ((b -&gt; m r) -&gt; m b) -&gt; SelectT r m b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679094829"><span class="annot"><span class="annottext">b -&gt; m r
+</span><a href="#local-6989586621679094829"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-134"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679094830"><span class="annot"><span class="annottext">h :: a -&gt; m b
+</span><a href="#local-6989586621679094830"><span class="hs-identifier hs-var hs-var hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679094831"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679094831"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SelectT r m b -&gt; (b -&gt; m r) -&gt; m b
+forall r (m :: * -&gt; *) a. SelectT r m a -&gt; (a -&gt; m r) -&gt; m a
+</span><a href="Control.Monad.Trans.Select.html#runSelectT"><span class="hs-identifier hs-var">runSelectT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; SelectT r m b
+</span><a href="#local-6989586621679094828"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679094831"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">b -&gt; m r
+</span><a href="#local-6989586621679094829"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-135"></span><span>        </span><span id="local-6989586621679094832"><span class="annot"><a href="#local-6989586621679094832"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(a -&gt; m r) -&gt; m a
+</span><a href="#local-6989586621679094826"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">m b -&gt; (b -&gt; m r) -&gt; m r
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; m r
+</span><a href="#local-6989586621679094829"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(m b -&gt; m r) -&gt; (a -&gt; m b) -&gt; a -&gt; m r
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m b
+</span><a href="#local-6989586621679094830"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>        </span><span class="annot"><a href="#local-6989586621679094830"><span class="hs-identifier hs-type">h</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094832"><span class="hs-identifier hs-type">y</span></a></span><span>
+</span><span id="line-137"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">&gt;&gt;=</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,9,0)
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679094674"><span id="local-6989586621679094675"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Fail.MonadFail</span></span><span> </span><span class="annot"><a href="#local-6989586621679094674"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fail.MonadFail</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094675"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094674"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-141"></span><span>    </span><span id="local-6989586621679094844"><span class="annot"><span class="annottext">fail :: forall a. String -&gt; SelectT r m a
+</span><span class="hs-identifier hs-var hs-var hs-var">fail</span></span></span><span> </span><span id="local-6989586621679094845"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679094845"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; SelectT r m a
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; SelectT r m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><a href="Control.Monad.Trans.Class.html#lift"><span class="hs-identifier hs-var">lift</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; m a
+forall a. String -&gt; m a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">Fail.fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679094845"><span class="hs-identifier hs-var">msg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">fail</span></span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-145"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679094658"><span id="local-6989586621679094659"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadPlus</span></span><span> </span><span class="annot"><a href="#local-6989586621679094658"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadPlus</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094659"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094658"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-146"></span><span>    </span><span id="local-6989586621679094861"><span class="annot"><span class="annottext">mzero :: forall a. SelectT r m a
+</span><span class="hs-identifier hs-var hs-var hs-var">mzero</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a
+forall r (m :: * -&gt; *) a. ((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a
+</span><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-var">SelectT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m a -&gt; (a -&gt; m r) -&gt; m a
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m a
+forall a. m a
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">mzero</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-148"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span id="local-6989586621679094864"><span class="annot"><span class="annottext">(a -&gt; m r) -&gt; m a
+</span><a href="#local-6989586621679094864"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679094865"><span class="annot"><span class="annottext">mplus :: forall a. SelectT r m a -&gt; SelectT r m a -&gt; SelectT r m a
+</span><span class="hs-operator hs-var hs-var hs-var">`mplus`</span></span></span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span id="local-6989586621679094866"><span class="annot"><span class="annottext">(a -&gt; m r) -&gt; m a
+</span><a href="#local-6989586621679094866"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a
+forall r (m :: * -&gt; *) a. ((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a
+</span><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-var">SelectT</span></a></span><span> </span><span class="annot"><span class="annottext">(((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a)
+-&gt; ((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679094867"><span class="annot"><span class="annottext">a -&gt; m r
+</span><a href="#local-6989586621679094867"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; m r) -&gt; m a
+</span><a href="#local-6989586621679094864"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; m r
+</span><a href="#local-6989586621679094867"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">m a -&gt; m a -&gt; m a
+forall a. m a -&gt; m a -&gt; m a
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a -&gt; m a -&gt; m a
+</span><span class="hs-operator hs-var">`mplus`</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; m r) -&gt; m a
+</span><a href="#local-6989586621679094866"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; m r
+</span><a href="#local-6989586621679094867"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-149"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">mplus</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679094630"><span class="annot"><a href="Control.Monad.Trans.Class.html#MonadTrans"><span class="hs-identifier hs-type">MonadTrans</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094630"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-152"></span><span>    </span><span id="local-6989586621679094873"><span class="annot"><span class="annottext">lift :: forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; SelectT r m a
+</span><a href="Control.Monad.Trans.Class.html#lift"><span class="hs-identifier hs-var hs-var hs-var">lift</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a
+forall r (m :: * -&gt; *) a. ((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a
+</span><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-var">SelectT</span></a></span><span> </span><span class="annot"><span class="annottext">(((a -&gt; m r) -&gt; m a) -&gt; SelectT r m a)
+-&gt; (m a -&gt; (a -&gt; m r) -&gt; m a) -&gt; m a -&gt; SelectT r m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">m a -&gt; (a -&gt; m r) -&gt; m a
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span>
+</span><span id="line-153"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Class.html#lift"><span class="hs-pragma hs-type">lift</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679094692"><span id="local-6989586621679094693"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#MonadIO"><span class="hs-identifier hs-type">MonadIO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094692"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#MonadIO"><span class="hs-identifier hs-type">MonadIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094693"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094692"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-156"></span><span>    </span><span id="local-6989586621679094885"><span class="annot"><span class="annottext">liftIO :: forall a. IO a -&gt; SelectT r m a
+</span><a href="#local-6989586621679094885"><span class="hs-identifier hs-var hs-var hs-var">liftIO</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; SelectT r m a
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; SelectT r m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><a href="Control.Monad.Trans.Class.html#lift"><span class="hs-identifier hs-var">lift</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; SelectT r m a) -&gt; (IO a -&gt; m a) -&gt; IO a -&gt; SelectT r m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; m a
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span>
+</span><span id="line-157"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#liftIO"><span class="hs-pragma hs-type">liftIO</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="annot"><span class="hs-comment">-- | Convert a selection computation to a continuation-passing computation.</span></span><span>
+</span><span id="line-160"></span><span id="local-6989586621679094695"><span id="local-6989586621679094696"><span id="local-6989586621679094697"><span class="annot"><a href="Control.Monad.Trans.Select.html#selectToContT"><span class="hs-identifier hs-type">selectToContT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679094695"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094696"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094695"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094697"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Cont.html#ContT"><span class="hs-identifier hs-type">ContT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094696"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094695"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094697"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-161"></span><span id="selectToContT"><span class="annot"><span class="annottext">selectToContT :: forall (m :: * -&gt; *) r a. Monad m =&gt; SelectT r m a -&gt; ContT r m a
+</span><a href="Control.Monad.Trans.Select.html#selectToContT"><span class="hs-identifier hs-var hs-var">selectToContT</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Select.html#SelectT"><span class="hs-identifier hs-type">SelectT</span></a></span><span> </span><span id="local-6989586621679094889"><span class="annot"><span class="annottext">(a -&gt; m r) -&gt; m a
+</span><a href="#local-6989586621679094889"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; m r) -&gt; m r) -&gt; ContT r m a
+forall {k} (r :: k) (m :: k -&gt; *) a.
+((a -&gt; m r) -&gt; m r) -&gt; ContT r m a
+</span><a href="Control.Monad.Trans.Cont.html#ContT"><span class="hs-identifier hs-var">ContT</span></a></span><span> </span><span class="annot"><span class="annottext">(((a -&gt; m r) -&gt; m r) -&gt; ContT r m a)
+-&gt; ((a -&gt; m r) -&gt; m r) -&gt; ContT r m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679094891"><span class="annot"><span class="annottext">a -&gt; m r
+</span><a href="#local-6989586621679094891"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; m r) -&gt; m a
+</span><a href="#local-6989586621679094889"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; m r
+</span><a href="#local-6989586621679094891"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">m a -&gt; (a -&gt; m r) -&gt; m r
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m r
+</span><a href="#local-6989586621679094891"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-162"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Select.html#selectToContT"><span class="hs-pragma hs-type">selectToContT</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-163"></span></pre></body></html>

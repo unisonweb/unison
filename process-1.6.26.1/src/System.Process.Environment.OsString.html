@@ -1,0 +1,55 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE PackageImports #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- | Miscellaneous information about the system environment, for 'OsString'.</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- @since X.Y.Z</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="System.Process.Environment.OsString.html"><span class="hs-identifier">System.Process.Environment.OsString</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="System.Process.Environment.OsString.html#getArgs"><span class="hs-identifier">getArgs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="System.Process.Environment.OsString.html#getEnv"><span class="hs-identifier">getEnv</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="System.Process.Environment.OsString.html#getEnvironment"><span class="hs-identifier">getEnvironment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Coerce.html"><span class="hs-identifier">Data.Coerce</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">coerce</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#if MIN_VERSION_filepath(1, 5, 0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-string">&quot;os-string&quot;</span><span> </span><span class="annot"><a href="../../os-string-2.0.7-20d6/src/System.OsString.Internal.Types.html"><span class="hs-identifier">System.OsString.Internal.Types</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../os-string-2.0.7-20d6/src/System.OsString.Internal.Types.html#OsString"><span class="hs-identifier">OsString</span></a></span><span class="hs-special">(</span><span class="annot"><a href="../../os-string-2.0.7-20d6/src/System.OsString.Internal.Types.html#OsString"><span class="hs-identifier">OsString</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-string">&quot;filepath&quot;</span><span> </span><span class="hs-identifier">System.OsString.Internal.Types</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">OsString</span><span class="hs-special">(</span><span class="hs-identifier">OsString</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if defined(mingw32_HOST_OS)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">System.Win32.WindowsString.Console</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Platform</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Env.PosixString.html"><span class="hs-identifier">System.Posix.Env.PosixString</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Platform</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- | 'System.Environment.getArgs' for 'OsString'.</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- @since X.Y.Z</span><span>
+</span><span id="line-28"></span><span class="annot"><a href="System.Process.Environment.OsString.html#getArgs"><span class="hs-identifier hs-type">getArgs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="../../os-string-2.0.7-20d6/src/System.OsString.Internal.Types.html#OsString"><span class="hs-identifier hs-type">OsString</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-29"></span><span id="getArgs"><span class="annot"><span class="annottext">getArgs :: IO [OsString]
+</span><a href="System.Process.Environment.OsString.html#getArgs"><span class="hs-identifier hs-var hs-var">getArgs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO [PosixString] -&gt; IO [OsString]
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">IO [PosixString]
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Env.PosixString.html#getArgs"><span class="hs-identifier hs-var">Platform.getArgs</span></a></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | 'System.Environment.getEnv' for 'OsString'.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- @since X.Y.Z</span><span>
+</span><span id="line-34"></span><span class="annot"><a href="System.Process.Environment.OsString.html#getEnv"><span class="hs-identifier hs-type">getEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../os-string-2.0.7-20d6/src/System.OsString.Internal.Types.html#OsString"><span class="hs-identifier hs-type">OsString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="../../os-string-2.0.7-20d6/src/System.OsString.Internal.Types.html#OsString"><span class="hs-identifier hs-type">OsString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span id="getEnv"><span class="annot"><span class="annottext">getEnv :: OsString -&gt; IO (Maybe OsString)
+</span><a href="System.Process.Environment.OsString.html#getEnv"><span class="hs-identifier hs-var hs-var">getEnv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(PosixString -&gt; IO (Maybe PosixString))
+-&gt; OsString -&gt; IO (Maybe OsString)
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">PosixString -&gt; IO (Maybe PosixString)
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Env.PosixString.html#getEnv"><span class="hs-identifier hs-var">Platform.getEnv</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | 'System.Environment.getEnvironment' for 'OsString'.</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- @since X.Y.Z</span><span>
+</span><span id="line-40"></span><span class="annot"><a href="System.Process.Environment.OsString.html#getEnvironment"><span class="hs-identifier hs-type">getEnvironment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="../../os-string-2.0.7-20d6/src/System.OsString.Internal.Types.html#OsString"><span class="hs-identifier hs-type">OsString</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../os-string-2.0.7-20d6/src/System.OsString.Internal.Types.html#OsString"><span class="hs-identifier hs-type">OsString</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-41"></span><span id="getEnvironment"><span class="annot"><span class="annottext">getEnvironment :: IO [(OsString, OsString)]
+</span><a href="System.Process.Environment.OsString.html#getEnvironment"><span class="hs-identifier hs-var hs-var">getEnvironment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO [(PosixString, PosixString)] -&gt; IO [(OsString, OsString)]
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">IO [(PosixString, PosixString)]
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Env.PosixString.html#getEnvironment"><span class="hs-identifier hs-var">Platform.getEnvironment</span></a></span><span>
+</span><span id="line-42"></span></pre></body></html>

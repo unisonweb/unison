@@ -1,0 +1,171 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-comment">-- |</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Module      : Data.ByteString.Base16.Lazy</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Copyright   : (c) 2011 MailRank, Inc.</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- License     : BSD</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Maintainer  : Herbert Valerio Riedel &lt;hvr@gnu.org&gt;,</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--               Mikhail Glushenkov &lt;mikhail.glushenkov@gmail.com&gt;,</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--               Emily Pillmore &lt;emilypi@cohomolo.gy&gt;</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Stability   : stable</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Portability : non-portable</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- RFC 4648-compliant Base16 (Hexadecimal) encoding for lazy 'ByteString' values.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- For a complete Base16 encoding specification, please see &lt;https://tools.ietf.org/html/rfc4648#section-8 RFC-4648 section 8&gt;.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.Lazy.html"><span class="hs-identifier">Data.ByteString.Base16.Lazy</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.Lazy.html#encode"><span class="hs-identifier">encode</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.Lazy.html#decode"><span class="hs-identifier">decode</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.Lazy.html#decodeLenient"><span class="hs-identifier">decodeLenient</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">LBS</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.html"><span class="hs-identifier">Data.ByteString.Base16</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B16</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.Internal.html"><span class="hs-identifier">Data.ByteString.Base16.Internal</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy.Internal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- | Encode a 'ByteString' value in base16 (i.e. hexadecimal).</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- Encoded values will always have a length that is a multiple of 2.</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--</span><span>
+</span><span id="line-36"></span><span class="hs-comment">--</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- &gt; encode &quot;foo&quot;  == &quot;666f6f&quot;</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--</span><span>
+</span><span id="line-41"></span><span class="annot"><a href="Data.ByteString.Base16.Lazy.html#encode"><span class="hs-identifier hs-type">encode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-42"></span><span id="encode"><span class="annot"><span class="annottext">encode :: ByteString -&gt; ByteString
+</span><a href="Data.ByteString.Base16.Lazy.html#encode"><span class="hs-identifier hs-var hs-var">encode</span></a></span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">Empty</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">Empty</span></span><span>
+</span><span id="line-43"></span><span class="annot"><a href="Data.ByteString.Base16.Lazy.html#encode"><span class="hs-identifier hs-var">encode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Chunk</span></span><span> </span><span id="local-6989586621679032045"><span class="annot"><span class="annottext">StrictByteString
+</span><a href="#local-6989586621679032045"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679032046"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679032046"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StrictByteString -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">Chunk</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StrictByteString -&gt; StrictByteString
+</span><a href="Data.ByteString.Base16.html#encode"><span class="hs-identifier hs-var">B16.encode</span></a></span><span> </span><span class="annot"><span class="annottext">StrictByteString
+</span><a href="#local-6989586621679032045"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="Data.ByteString.Base16.Lazy.html#encode"><span class="hs-identifier hs-var">encode</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679032046"><span class="hs-identifier hs-var">cs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- | Decode a base16-encoded 'ByteString' value.</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- If errors are encountered during the decoding process,</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- then an error message and character offset will be returned in</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- the @Left@ clause of the coproduct.</span><span>
+</span><span id="line-49"></span><span class="hs-comment">--</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- &gt; decode &quot;666f6f&quot; == Right &quot;foo&quot;</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- &gt; decode &quot;66quux&quot; == Left &quot;invalid character at offset: 2&quot;</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- &gt; decode &quot;666quu&quot; == Left &quot;invalid character at offset: 3&quot;</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- @since 1.0.0.0</span><span>
+</span><span id="line-57"></span><span class="hs-comment">--</span><span>
+</span><span id="line-58"></span><span class="annot"><a href="Data.ByteString.Base16.Lazy.html#decode"><span class="hs-identifier hs-type">decode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-59"></span><span id="decode"><span class="annot"><span class="annottext">decode :: ByteString -&gt; Either String ByteString
+</span><a href="Data.ByteString.Base16.Lazy.html#decode"><span class="hs-identifier hs-var hs-var">decode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Either String StrictByteString -&gt; Either String ByteString
+forall {a}. Either a StrictByteString -&gt; Either a ByteString
+</span><a href="#local-6989586621679032048"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(Either String StrictByteString -&gt; Either String ByteString)
+-&gt; (ByteString -&gt; Either String StrictByteString)
+-&gt; ByteString
+-&gt; Either String ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">StrictByteString -&gt; Either String StrictByteString
+</span><a href="Data.ByteString.Base16.html#decode"><span class="hs-identifier hs-var">B16.decode</span></a></span><span> </span><span class="annot"><span class="annottext">(StrictByteString -&gt; Either String StrictByteString)
+-&gt; (ByteString -&gt; StrictByteString)
+-&gt; ByteString
+-&gt; Either String StrictByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[StrictByteString] -&gt; StrictByteString
+</span><span class="hs-identifier hs-var">BS.concat</span></span><span> </span><span class="annot"><span class="annottext">([StrictByteString] -&gt; StrictByteString)
+-&gt; (ByteString -&gt; [StrictByteString])
+-&gt; ByteString
+-&gt; StrictByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; [StrictByteString]
+</span><span class="hs-identifier hs-var">LBS.toChunks</span></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621679032048"><span class="annot"><span class="annottext">f :: Either a StrictByteString -&gt; Either a ByteString
+</span><a href="#local-6989586621679032048"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679032053"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032053"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Either a ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032053"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-62"></span><span>    </span><span class="annot"><a href="#local-6989586621679032048"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679032054"><span class="annot"><span class="annottext">StrictByteString
+</span><a href="#local-6989586621679032054"><span class="hs-identifier hs-var">bs'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Either a ByteString
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[StrictByteString] -&gt; ByteString
+</span><span class="hs-identifier hs-var">LBS.fromChunks</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">StrictByteString
+</span><a href="#local-6989586621679032054"><span class="hs-identifier hs-var">bs'</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- | Decode a Base16-encoded 'ByteString' value leniently, using a</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- strategy that never fails.</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- /N.B./: this is not RFC 4648-compliant</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-70"></span><span class="hs-comment">--</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- &gt; decodeLenient &quot;666f6f&quot; == &quot;foo&quot;</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- &gt; decodeLenient &quot;66quux&quot; == &quot;f&quot;</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- &gt; decodeLenient &quot;666quu&quot; == &quot;f&quot;</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- &gt; decodeLenient &quot;666fqu&quot; == &quot;fo&quot;</span><span>
+</span><span id="line-75"></span><span class="hs-comment">--</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- @since 1.0.0.0</span><span>
+</span><span id="line-77"></span><span class="hs-comment">--</span><span>
+</span><span id="line-78"></span><span class="annot"><a href="Data.ByteString.Base16.Lazy.html#decodeLenient"><span class="hs-identifier hs-type">decodeLenient</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-79"></span><span id="decodeLenient"><span class="annot"><span class="annottext">decodeLenient :: ByteString -&gt; ByteString
+</span><a href="Data.ByteString.Base16.Lazy.html#decodeLenient"><span class="hs-identifier hs-var hs-var">decodeLenient</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[StrictByteString] -&gt; ByteString
+</span><span class="hs-identifier hs-var">LBS.fromChunks</span></span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><span class="annottext">([StrictByteString] -&gt; ByteString)
+-&gt; (ByteString -&gt; [StrictByteString]) -&gt; ByteString -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(StrictByteString -&gt; StrictByteString)
+-&gt; [StrictByteString] -&gt; [StrictByteString]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">StrictByteString -&gt; StrictByteString
+</span><a href="Data.ByteString.Base16.html#decodeLenient"><span class="hs-identifier hs-var">B16.decodeLenient</span></a></span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><span class="annottext">([StrictByteString] -&gt; [StrictByteString])
+-&gt; (ByteString -&gt; [StrictByteString])
+-&gt; ByteString
+-&gt; [StrictByteString]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[StrictByteString] -&gt; [StrictByteString]
+</span><a href="Data.ByteString.Base16.Internal.html#reChunk"><span class="hs-identifier hs-var">reChunk</span></a></span><span>
+</span><span id="line-82"></span><span>    </span><span class="annot"><span class="annottext">([StrictByteString] -&gt; [StrictByteString])
+-&gt; (ByteString -&gt; [StrictByteString])
+-&gt; ByteString
+-&gt; [StrictByteString]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(StrictByteString -&gt; StrictByteString)
+-&gt; [StrictByteString] -&gt; [StrictByteString]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Word8 -&gt; Bool) -&gt; StrictByteString -&gt; StrictByteString
+</span><span class="hs-identifier hs-var">BS.filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Word8 -&gt; StrictByteString -&gt; Bool)
+-&gt; StrictByteString -&gt; Word8 -&gt; Bool
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; StrictByteString -&gt; Bool
+</span><span class="hs-identifier hs-var">BS.elem</span></span><span> </span><span class="annot"><span class="annottext">StrictByteString
+</span><a href="#local-6989586621679032061"><span class="hs-identifier hs-var">extendedHex</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><span class="annottext">([StrictByteString] -&gt; [StrictByteString])
+-&gt; (ByteString -&gt; [StrictByteString])
+-&gt; ByteString
+-&gt; [StrictByteString]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; [StrictByteString]
+</span><span class="hs-identifier hs-var">LBS.toChunks</span></span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-85"></span><span>    </span><span id="local-6989586621679032061"><span class="annot"><span class="annottext">extendedHex :: StrictByteString
+</span><a href="#local-6989586621679032061"><span class="hs-identifier hs-var hs-var">extendedHex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word8] -&gt; StrictByteString
+</span><span class="hs-identifier hs-var">BS.pack</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Char -&gt; Word8) -&gt; String -&gt; [Word8]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Word8
+</span><a href="Data.ByteString.Base16.Internal.html#c2w"><span class="hs-identifier hs-var">c2w</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;0123456789abcdefABCDEF&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span></pre></body></html>

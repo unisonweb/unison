@@ -1,0 +1,246 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- Optimized in every build, --fast too: minifying is slow without it</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_GHC -O2 #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- | What the writers share: the choices made on the command line, the</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- statistics they report, and the relocation of an address through the</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- plan (including to the stub of a cut definition).</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Minify.Relocate.html"><span class="hs-identifier">Minify.Relocate</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Minify.Relocate.html#Choices"><span class="hs-identifier">Choices</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Minify.Relocate.html#Stats"><span class="hs-identifier">Stats</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Minify.Relocate.html#relocate"><span class="hs-identifier">relocate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Minify.Relocate.html#alignUp"><span class="hs-identifier">alignUp</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Minify.Relocate.html#toStrict"><span class="hs-identifier">toStrict</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Minify.Relocate.html#hex"><span class="hs-identifier">hex</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Minify.Relocate.html#definedSymbol"><span class="hs-identifier">definedSymbol</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Builder</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BB</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BL</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Minify.Analysis.html"><span class="hs-identifier">Minify.Analysis</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Minify.Format.html"><span class="hs-identifier">Minify.Format</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Minify.Layout.html"><span class="hs-identifier">Minify.Layout</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- | The flag keeps Haskell definitions in the export trie; by default only</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- the other symbols stay exported, since nothing looks a Haskell closure</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- up by name with dlsym. 'rwStrip' drops the symbol table (all but the</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- undefined symbols the stubs bind through) and the function starts.</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">data</span><span> </span><span id="Choices"><span class="annot"><a href="Minify.Relocate.html#Choices"><span class="hs-identifier hs-var">Choices</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Choices"><span class="annot"><a href="Minify.Relocate.html#Choices"><span class="hs-identifier hs-var">Choices</span></a></span></span><span> </span><span class="hs-special">{</span><span id="rwKeepHaskellExports"><span class="annot"><span class="annottext">Choices -&gt; Bool
+</span><a href="Minify.Relocate.html#rwKeepHaskellExports"><span class="hs-identifier hs-var hs-var">rwKeepHaskellExports</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span> </span><span id="rwStrip"><span class="annot"><span class="annottext">Choices -&gt; Bool
+</span><a href="Minify.Relocate.html#rwStrip"><span class="hs-identifier hs-var hs-var">rwStrip</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span> </span><span id="rwZeroFolded"><span class="annot"><span class="annottext">Choices -&gt; Bool
+</span><a href="Minify.Relocate.html#rwZeroFolded"><span class="hs-identifier hs-var hs-var">rwZeroFolded</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">}</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">data</span><span> </span><span id="Stats"><span class="annot"><a href="Minify.Relocate.html#Stats"><span class="hs-identifier hs-var">Stats</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Stats"><span class="annot"><a href="Minify.Relocate.html#Stats"><span class="hs-identifier hs-var">Stats</span></a></span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="stSymbolsKept"><span class="annot"><span class="annottext">Stats -&gt; Int
+</span><a href="Minify.Relocate.html#stSymbolsKept"><span class="hs-identifier hs-var hs-var">stSymbolsKept</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>    </span><span id="stSymbolsDropped"><span class="annot"><span class="annottext">Stats -&gt; Int
+</span><a href="Minify.Relocate.html#stSymbolsDropped"><span class="hs-identifier hs-var hs-var">stSymbolsDropped</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>    </span><span id="stRebases"><span class="annot"><span class="annottext">Stats -&gt; Int
+</span><a href="Minify.Relocate.html#stRebases"><span class="hs-identifier hs-var hs-var">stRebases</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span id="stBinds"><span class="annot"><span class="annottext">Stats -&gt; Int
+</span><a href="Minify.Relocate.html#stBinds"><span class="hs-identifier hs-var hs-var">stBinds</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span id="stExports"><span class="annot"><span class="annottext">Stats -&gt; Int
+</span><a href="Minify.Relocate.html#stExports"><span class="hs-identifier hs-var hs-var">stExports</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span id="stLinkeditBytes"><span class="annot"><span class="annottext">Stats -&gt; Int
+</span><a href="Minify.Relocate.html#stLinkeditBytes"><span class="hs-identifier hs-var hs-var">stLinkeditBytes</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span id="stFileBytes"><span class="annot"><span class="annottext">Stats -&gt; Int
+</span><a href="Minify.Relocate.html#stFileBytes"><span class="hs-identifier hs-var hs-var">stFileBytes</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679150157"><span id="local-6989586621679150168"><span id="local-6989586621679150172"><span class="annot"><span class="annottext">Int -&gt; Stats -&gt; ShowS
+[Stats] -&gt; ShowS
+Stats -&gt; [Char]
+(Int -&gt; Stats -&gt; ShowS)
+-&gt; (Stats -&gt; [Char]) -&gt; ([Stats] -&gt; ShowS) -&gt; Show Stats
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; [Char]) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Stats -&gt; ShowS
+showsPrec :: Int -&gt; Stats -&gt; ShowS
+$cshow :: Stats -&gt; [Char]
+show :: Stats -&gt; [Char]
+$cshowList :: [Stats] -&gt; ShowS
+showList :: [Stats] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Minify.Relocate.html#alignUp"><span class="hs-identifier hs-type">alignUp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-47"></span><span id="alignUp"><span class="annot"><span class="annottext">alignUp :: Word64 -&gt; Word64 -&gt; Word64
+</span><a href="Minify.Relocate.html#alignUp"><span class="hs-identifier hs-var hs-var">alignUp</span></a></span></span><span> </span><span id="local-6989586621679150176"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150176"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679150177"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150177"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150176"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150177"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64
+forall a. Bits a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">complement</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150177"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Minify.Relocate.html#toStrict"><span class="hs-identifier hs-type">toStrict</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BB.Builder</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-50"></span><span id="toStrict"><span class="annot"><span class="annottext">toStrict :: Builder -&gt; ByteString
+</span><a href="Minify.Relocate.html#toStrict"><span class="hs-identifier hs-var hs-var">toStrict</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LazyByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">BL.toStrict</span></span><span> </span><span class="annot"><span class="annottext">(LazyByteString -&gt; ByteString)
+-&gt; (Builder -&gt; LazyByteString) -&gt; Builder -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; LazyByteString
+</span><span class="hs-identifier hs-var">BB.toLazyByteString</span></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><a href="Minify.Relocate.html#hex"><span class="hs-identifier hs-type">hex</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-53"></span><span id="hex"><span class="annot"><span class="annottext">hex :: Word64 -&gt; [Char]
+</span><a href="Minify.Relocate.html#hex"><span class="hs-identifier hs-var hs-var">hex</span></a></span></span><span> </span><span id="local-6989586621679150184"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150184"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;0x&quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; [Char]
+forall {a}. (Bits a, Integral a) =&gt; a -&gt; [Char]
+</span><a href="#local-6989586621679150185"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150184"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-55"></span><span>    </span><span id="local-6989586621679150185"><span class="annot"><span class="annottext">go :: a -&gt; [Char]
+</span><a href="#local-6989586621679150185"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-56"></span><span>    </span><span class="annot"><a href="#local-6989586621679150185"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621679150218"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679150218"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; [Char]
+</span><a href="#local-6989586621679150185"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679150218"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; a
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;0123456789abcdef&quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Int -&gt; Char
+forall a. HasCallStack =&gt; [a] -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">!!</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679150218"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">15</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- | The new address of an old one, or the stub that replaces a cut</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- definition it points into; an error for a removed one.</span><span>
+</span><span id="line-60"></span><span class="annot"><a href="Minify.Relocate.html#relocate"><span class="hs-identifier hs-type">relocate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Minify.Analysis.html#Analysis"><span class="hs-identifier hs-type">Analysis</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Minify.Layout.html#Plan"><span class="hs-identifier hs-type">Plan</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-61"></span><span id="relocate"><span class="annot"><span class="annottext">relocate :: Analysis -&gt; Plan -&gt; Word64 -&gt; Either [Char] Word64
+</span><a href="Minify.Relocate.html#relocate"><span class="hs-identifier hs-var hs-var">relocate</span></a></span></span><span> </span><span id="local-6989586621679150221"><span class="annot"><span class="annottext">Analysis
+</span><a href="#local-6989586621679150221"><span class="hs-identifier hs-var">an</span></a></span></span><span> </span><span id="local-6989586621679150222"><span class="annot"><span class="annottext">Plan
+</span><a href="#local-6989586621679150222"><span class="hs-identifier hs-var">pl</span></a></span></span><span> </span><span id="local-6989586621679150223"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150223"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Analysis -&gt; Plan -&gt; Word64 -&gt; Maybe Word64
+</span><a href="Minify.Layout.html#newAddrOf"><span class="hs-identifier hs-var">newAddrOf</span></a></span><span> </span><span class="annot"><span class="annottext">Analysis
+</span><a href="#local-6989586621679150221"><span class="hs-identifier hs-var">an</span></a></span><span> </span><span class="annot"><span class="annottext">Plan
+</span><a href="#local-6989586621679150222"><span class="hs-identifier hs-var">pl</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150223"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679150225"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150225"><span class="hs-identifier hs-var">a'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Either [Char] Word64
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150225"><span class="hs-identifier hs-var">a'</span></a></span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><span class="annottext">Maybe Word64
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Image -&gt; Word64 -&gt; Maybe Def
+</span><a href="Minify.Analysis.html#defAt"><span class="hs-identifier hs-var">defAt</span></a></span><span> </span><span class="annot"><span class="annottext">Image
+</span><a href="#local-6989586621679150227"><span class="hs-identifier hs-var">im</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150223"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679150228"><span class="annot"><span class="annottext">Def
+</span><a href="#local-6989586621679150228"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679150229"><span class="annot"><span class="annottext">Stub
+</span><a href="#local-6989586621679150229"><span class="hs-identifier hs-var">st</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Map Int Stub -&gt; Maybe Stub
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">M.lookup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Def -&gt; Int
+</span><a href="Minify.Analysis.html#dIndex"><span class="hs-identifier hs-var">dIndex</span></a></span><span> </span><span class="annot"><span class="annottext">Def
+</span><a href="#local-6989586621679150228"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Plan -&gt; Map Int Stub
+</span><a href="Minify.Layout.html#plStubs"><span class="hs-identifier hs-var">plStubs</span></a></span><span> </span><span class="annot"><span class="annottext">Plan
+</span><a href="#local-6989586621679150222"><span class="hs-identifier hs-var">pl</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Either [Char] Word64
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Either [Char] Word64) -&gt; Word64 -&gt; Either [Char] Word64
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Stub -&gt; Maybe Word64
+</span><a href="Minify.Layout.html#sbClosure"><span class="hs-identifier hs-var">sbClosure</span></a></span><span> </span><span class="annot"><span class="annottext">Stub
+</span><a href="#local-6989586621679150229"><span class="hs-identifier hs-var">st</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-65"></span><span>      </span><span class="hs-comment">-- a pointer to a cut closure keeps its tag bits</span><span>
+</span><span id="line-66"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679150234"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150234"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150234"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150223"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">7</span></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>      </span><span class="annot"><span class="annottext">Maybe Word64
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Stub -&gt; Word64
+</span><a href="Minify.Layout.html#sbCode"><span class="hs-identifier hs-var">sbCode</span></a></span><span> </span><span class="annot"><span class="annottext">Stub
+</span><a href="#local-6989586621679150229"><span class="hs-identifier hs-var">st</span></a></span><span>
+</span><span id="line-68"></span><span>    </span><span class="annot"><span class="annottext">Maybe Def
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Either [Char] Word64
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;reference into a removed definition at &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; [Char]
+</span><a href="Minify.Relocate.html#hex"><span class="hs-identifier hs-var">hex</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150223"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; (Def -&gt; [Char]) -&gt; Maybe Def -&gt; [Char]
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot; in &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; (Def -&gt; [Char]) -&gt; Def -&gt; [Char]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Def -&gt; [Char]
+</span><a href="Minify.Analysis.html#hsDisplay"><span class="hs-identifier hs-var">hsDisplay</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Image -&gt; Word64 -&gt; Maybe Def
+</span><a href="Minify.Analysis.html#defAt"><span class="hs-identifier hs-var">defAt</span></a></span><span> </span><span class="annot"><span class="annottext">Image
+</span><a href="#local-6989586621679150227"><span class="hs-identifier hs-var">im</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150223"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-70"></span><span>    </span><span id="local-6989586621679150227"><span class="annot"><span class="annottext">im :: Image
+</span><a href="#local-6989586621679150227"><span class="hs-identifier hs-var hs-var">im</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Analysis -&gt; Image
+</span><a href="Minify.Analysis.html#anImage"><span class="hs-identifier hs-var">anImage</span></a></span><span> </span><span class="annot"><span class="annottext">Analysis
+</span><a href="#local-6989586621679150221"><span class="hs-identifier hs-var">an</span></a></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="annot"><span class="hs-comment">-- | The address of a defined symbol, by name.</span></span><span>
+</span><span id="line-73"></span><span class="annot"><a href="Minify.Relocate.html#definedSymbol"><span class="hs-identifier hs-type">definedSymbol</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Minify.Analysis.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-74"></span><span id="definedSymbol"><span class="annot"><span class="annottext">definedSymbol :: Image -&gt; ByteString -&gt; Maybe Word64
+</span><a href="Minify.Relocate.html#definedSymbol"><span class="hs-identifier hs-var hs-var">definedSymbol</span></a></span></span><span> </span><span id="local-6989586621679150239"><span class="annot"><span class="annottext">Image
+</span><a href="#local-6989586621679150239"><span class="hs-identifier hs-var">im</span></a></span></span><span> </span><span id="local-6989586621679150240"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679150240"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Symbol -&gt; Word64
+</span><a href="Minify.Format.html#syValue"><span class="hs-identifier hs-var">syValue</span></a></span><span> </span><span class="annot"><span class="annottext">Symbol
+</span><a href="#local-6989586621679150242"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679150242"><span class="annot"><span class="annottext">Symbol
+</span><a href="#local-6989586621679150242"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Image -&gt; [Symbol]
+</span><a href="Minify.Analysis.html#imSymbols"><span class="hs-identifier hs-var">imSymbols</span></a></span><span> </span><span class="annot"><span class="annottext">Image
+</span><a href="#local-6989586621679150239"><span class="hs-identifier hs-var">im</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Symbol -&gt; Bool
+</span><a href="Minify.Format.html#syDefined"><span class="hs-identifier hs-var">syDefined</span></a></span><span> </span><span class="annot"><span class="annottext">Symbol
+</span><a href="#local-6989586621679150242"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Symbol -&gt; ByteString
+</span><a href="Minify.Format.html#syName"><span class="hs-identifier hs-var">syName</span></a></span><span> </span><span class="annot"><span class="annottext">Symbol
+</span><a href="#local-6989586621679150242"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679150240"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-75"></span><span>  </span><span id="local-6989586621679150246"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150246"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[Word64]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Maybe Word64
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679150246"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Word64
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="annot"><a href="Minify.Relocate.html#_unused"><span class="hs-identifier hs-type">_unused</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span id="_unused"><span class="annot"><span class="annottext">_unused :: Vector ()
+</span><a href="Minify.Relocate.html#_unused"><span class="hs-identifier hs-var hs-var">_unused</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector ()
+forall a. Vector a
+</span><span class="hs-identifier hs-var">V.empty</span></span><span>
+</span><span id="line-80"></span></pre></body></html>

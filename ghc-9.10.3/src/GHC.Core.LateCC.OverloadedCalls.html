@@ -1,0 +1,768 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE LambdaCase    #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE TupleSections #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.OverloadedCalls.html"><span class="hs-identifier">GHC.Core.LateCC.OverloadedCalls</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.OverloadedCalls.html#overloadedCallsCC"><span class="hs-identifier">overloadedCallsCC</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Class.html"><span class="hs-identifier">Control.Monad.Trans.Class</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Reader.html"><span class="hs-identifier">Control.Monad.Trans.Reader</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.State.Strict.html"><span class="hs-identifier">Control.Monad.Trans.State.Strict</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.Data.Strict.html"><span class="hs-identifier">GHC.Data.Strict</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Strict</span></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html"><span class="hs-identifier">GHC.Data.FastString</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.html"><span class="hs-identifier">GHC.Core</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Utils.html"><span class="hs-identifier">GHC.Core.LateCC.Utils</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html"><span class="hs-identifier">GHC.Core.LateCC.Types</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Make.html"><span class="hs-identifier">GHC.Core.Make</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Predicate.html"><span class="hs-identifier">GHC.Core.Predicate</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Type.html"><span class="hs-identifier">GHC.Core.Type</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Utils.html"><span class="hs-identifier">GHC.Core.Utils</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Tc.Utils.TcType.html"><span class="hs-identifier">GHC.Tc.Utils.TcType</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Id.html"><span class="hs-identifier">GHC.Types.Id</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.html"><span class="hs-identifier">GHC.Types.Name</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html"><span class="hs-identifier">GHC.Types.SrcLoc</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Tickish.html"><span class="hs-identifier">GHC.Types.Tickish</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Var.html"><span class="hs-identifier">GHC.Types.Var</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">type</span><span> </span><span id="OverloadedCallsCCState"><span class="annot"><a href="GHC.Core.LateCC.OverloadedCalls.html#OverloadedCallsCCState"><span class="hs-identifier hs-var">OverloadedCallsCCState</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Data.Strict.html#Maybe"><span class="hs-identifier hs-type">Strict.Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html#SrcSpan"><span class="hs-identifier hs-type">SrcSpan</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- | Insert cost centres on function applications with dictionary arguments. The</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- source locations attached to the cost centres is approximated based on the</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- &quot;closest&quot; source note encountered in the traversal.</span><span>
+</span><span id="line-36"></span><span class="annot"><a href="GHC.Core.LateCC.OverloadedCalls.html#overloadedCallsCC"><span class="hs-identifier hs-type">overloadedCallsCC</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreBind"><span class="hs-identifier hs-type">CoreBind</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCM"><span class="hs-identifier hs-type">LateCCM</span></a></span><span> </span><span class="annot"><a href="GHC.Core.LateCC.OverloadedCalls.html#OverloadedCallsCCState"><span class="hs-identifier hs-type">OverloadedCallsCCState</span></a></span><span> </span><span class="annot"><a href="GHC.Core.html#CoreBind"><span class="hs-identifier hs-type">CoreBind</span></a></span><span>
+</span><span id="line-37"></span><span id="overloadedCallsCC"><span class="annot"><span class="annottext">overloadedCallsCC :: CoreBind -&gt; LateCCM OverloadedCallsCCState CoreBind
+</span><a href="GHC.Core.LateCC.OverloadedCalls.html#overloadedCallsCC"><span class="hs-identifier hs-var hs-var">overloadedCallsCC</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="annottext">CoreBind -&gt; LateCCM OverloadedCallsCCState CoreBind
+</span><a href="#local-6989586621682568150"><span class="hs-identifier hs-var">processBind</span></a></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="#local-6989586621682568150"><span class="hs-identifier hs-type">processBind</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreBind"><span class="hs-identifier hs-type">CoreBind</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCM"><span class="hs-identifier hs-type">LateCCM</span></a></span><span> </span><span class="annot"><a href="GHC.Core.LateCC.OverloadedCalls.html#OverloadedCallsCCState"><span class="hs-identifier hs-type">OverloadedCallsCCState</span></a></span><span> </span><span class="annot"><a href="GHC.Core.html#CoreBind"><span class="hs-identifier hs-type">CoreBind</span></a></span><span>
+</span><span id="line-41"></span><span>    </span><span id="local-6989586621682568150"><span class="annot"><span class="annottext">processBind :: CoreBind -&gt; LateCCM OverloadedCallsCCState CoreBind
+</span><a href="#local-6989586621682568150"><span class="hs-identifier hs-var hs-var">processBind</span></a></span></span><span> </span><span id="local-6989586621682568151"><span class="annot"><span class="annottext">CoreBind
+</span><a href="#local-6989586621682568151"><span class="hs-identifier hs-var">core_bind</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-42"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">CoreBind
+</span><a href="#local-6989586621682568151"><span class="hs-identifier hs-var">core_bind</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-43"></span><span>          </span><span class="annot"><a href="GHC.Core.html#NonRec"><span class="hs-identifier hs-type">NonRec</span></a></span><span> </span><span id="local-6989586621682568153"><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568153"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621682568154"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568154"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-44"></span><span>            </span><span class="annot"><span class="annottext">CoreBndr -&gt; Expr CoreBndr -&gt; CoreBind
+forall b. b -&gt; Expr b -&gt; Bind b
+</span><a href="GHC.Core.html#NonRec"><span class="hs-identifier hs-var">NonRec</span></a></span><span> </span><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568153"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">(Expr CoreBndr -&gt; CoreBind)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+-&gt; LateCCM OverloadedCallsCCState CoreBind
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+</span><a href="#local-6989586621682568156"><span class="hs-identifier hs-var">wrap_if_join</span></a></span><span> </span><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568153"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Expr CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+</span><a href="#local-6989586621682568157"><span class="hs-identifier hs-var">processExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568154"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>          </span><span class="annot"><a href="GHC.Core.html#Rec"><span class="hs-identifier hs-type">Rec</span></a></span><span> </span><span id="local-6989586621682568159"><span class="annot"><span class="annottext">[(CoreBndr, Expr CoreBndr)]
+</span><a href="#local-6989586621682568159"><span class="hs-identifier hs-var">es</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-46"></span><span>            </span><span class="annot"><span class="annottext">[(CoreBndr, Expr CoreBndr)] -&gt; CoreBind
+forall b. [(b, Expr b)] -&gt; Bind b
+</span><a href="GHC.Core.html#Rec"><span class="hs-identifier hs-var">Rec</span></a></span><span> </span><span class="annot"><span class="annottext">([(CoreBndr, Expr CoreBndr)] -&gt; CoreBind)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     [(CoreBndr, Expr CoreBndr)]
+-&gt; LateCCM OverloadedCallsCCState CoreBind
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">((CoreBndr, Expr CoreBndr)
+ -&gt; ReaderT
+      LateCCEnv
+      (State (LateCCState OverloadedCallsCCState))
+      (CoreBndr, Expr CoreBndr))
+-&gt; [(CoreBndr, Expr CoreBndr)]
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     [(CoreBndr, Expr CoreBndr)]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621682568161"><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568161"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621682568162"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568162"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568161"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Expr CoreBndr -&gt; (CoreBndr, Expr CoreBndr))
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (CoreBndr, Expr CoreBndr)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+</span><a href="#local-6989586621682568156"><span class="hs-identifier hs-var">wrap_if_join</span></a></span><span> </span><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568161"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Expr CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+</span><a href="#local-6989586621682568157"><span class="hs-identifier hs-var">processExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568162"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[(CoreBndr, Expr CoreBndr)]
+</span><a href="#local-6989586621682568159"><span class="hs-identifier hs-var">es</span></a></span><span>
+</span><span id="line-47"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>        </span><span class="hs-comment">-- If an overloaded function is turned into a join point, we won't add</span><span>
+</span><span id="line-49"></span><span>        </span><span class="hs-comment">-- SCCs directly to calls since it makes them non-tail calls. Instead,</span><span>
+</span><span id="line-50"></span><span>        </span><span class="hs-comment">-- we look for join points here and add an SCC to their RHS if they are</span><span>
+</span><span id="line-51"></span><span>        </span><span class="hs-comment">-- overloaded.</span><span>
+</span><span id="line-52"></span><span>        </span><span class="annot"><a href="#local-6989586621682568156"><span class="hs-identifier hs-type">wrap_if_join</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-53"></span><span>             </span><span class="annot"><a href="GHC.Core.html#CoreBndr"><span class="hs-identifier hs-type">CoreBndr</span></a></span><span>
+</span><span id="line-54"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCM"><span class="hs-identifier hs-type">LateCCM</span></a></span><span> </span><span class="annot"><a href="GHC.Core.LateCC.OverloadedCalls.html#OverloadedCallsCCState"><span class="hs-identifier hs-type">OverloadedCallsCCState</span></a></span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span>
+</span><span id="line-55"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCM"><span class="hs-identifier hs-type">LateCCM</span></a></span><span> </span><span class="annot"><a href="GHC.Core.LateCC.OverloadedCalls.html#OverloadedCallsCCState"><span class="hs-identifier hs-type">OverloadedCallsCCState</span></a></span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span>
+</span><span id="line-56"></span><span>        </span><span id="local-6989586621682568156"><span class="annot"><span class="annottext">wrap_if_join :: CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+</span><a href="#local-6989586621682568156"><span class="hs-identifier hs-var hs-var">wrap_if_join</span></a></span></span><span> </span><span id="local-6989586621682568164"><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568164"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621682568165"><span class="annot"><span class="annottext">ReaderT
+  LateCCEnv
+  (State (LateCCState OverloadedCallsCCState))
+  (Expr CoreBndr)
+</span><a href="#local-6989586621682568165"><span class="hs-identifier hs-var">pexpr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-57"></span><span>            </span><span id="local-6989586621682568166"><span class="annot"><a href="#local-6989586621682568166"><span class="hs-identifier hs-var">expr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ReaderT
+  LateCCEnv
+  (State (LateCCState OverloadedCallsCCState))
+  (Expr CoreBndr)
+</span><a href="#local-6989586621682568165"><span class="hs-identifier hs-var">pexpr</span></a></span><span>
+</span><span id="line-58"></span><span>            </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="GHC.Types.Id.html#isJoinId"><span class="hs-identifier hs-type">isJoinId</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682568164"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&amp;&amp;</span></span><span> </span><span class="annot"><a href="GHC.Tc.Utils.TcType.html#isOverloadedTy"><span class="hs-identifier hs-type">isOverloadedTy</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Utils.html#exprType"><span class="hs-identifier hs-type">exprType</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682568166"><span class="hs-identifier hs-type">expr</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-59"></span><span>              </span><span class="hs-keyword">let</span><span>
+</span><span id="line-60"></span><span>                </span><span class="annot"><a href="#local-6989586621682568171"><span class="hs-identifier hs-type">cc_name</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span>
+</span><span id="line-61"></span><span>                </span><span id="local-6989586621682568171"><span class="annot"><a href="#local-6989586621682568171"><span class="hs-identifier hs-var hs-var">cc_name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; FastString
+</span><a href="GHC.Data.FastString.html#fsLit"><span class="hs-identifier hs-var">fsLit</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;join-rhs-&quot;</span></span><span> </span><span class="annot"><span class="annottext">FastString -&gt; FastString -&gt; FastString
+</span><a href="GHC.Data.FastString.html#appendFS"><span class="hs-operator hs-var">`appendFS`</span></a></span><span> </span><span class="annot"><span class="annottext">CoreBndr -&gt; FastString
+forall a. NamedThing a =&gt; a -&gt; FastString
+</span><a href="GHC.Types.Name.html#getOccFS"><span class="hs-identifier hs-var">getOccFS</span></a></span><span> </span><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568164"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span>              </span><span id="local-6989586621682568175"><span class="annot"><a href="#local-6989586621682568175"><span class="hs-identifier hs-var">cc_srcspan</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-64"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.Strict.html#fromMaybe"><span class="hs-identifier hs-type">Strict.fromMaybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#UnhelpfulSpan"><span class="hs-identifier hs-type">UnhelpfulSpan</span></a></span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html#UnhelpfulNoLocationInfo"><span class="hs-identifier hs-type">UnhelpfulNoLocationInfo</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-65"></span><span>                  </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Class.html#lift"><span class="hs-identifier hs-type">lift</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.State.Strict.html#gets"><span class="hs-identifier hs-type">gets</span></a></span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#lateCCState_extra"><span class="hs-identifier hs-var">lateCCState_extra</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>              </span><span class="annot"><a href="GHC.Core.LateCC.Utils.html#insertCC"><span class="hs-identifier hs-type">insertCC</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682568171"><span class="hs-identifier hs-type">cc_name</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682568175"><span class="hs-identifier hs-type">cc_srcspan</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682568166"><span class="hs-identifier hs-type">expr</span></a></span><span>
+</span><span id="line-68"></span><span>            </span><span class="hs-keyword">else</span><span>
+</span><span id="line-69"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621682568166"><span class="hs-identifier hs-type">expr</span></a></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span>    </span><span class="annot"><a href="#local-6989586621682568157"><span class="hs-identifier hs-type">processExpr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCM"><span class="hs-identifier hs-type">LateCCM</span></a></span><span> </span><span class="annot"><a href="GHC.Core.LateCC.OverloadedCalls.html#OverloadedCallsCCState"><span class="hs-identifier hs-type">OverloadedCallsCCState</span></a></span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span>
+</span><span id="line-73"></span><span>    </span><span id="local-6989586621682568157"><span class="annot"><span class="annottext">processExpr :: Expr CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+</span><a href="#local-6989586621682568157"><span class="hs-identifier hs-var hs-var">processExpr</span></a></span></span><span> </span><span id="local-6989586621682568183"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568183"><span class="hs-identifier hs-var">expr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-74"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568183"><span class="hs-identifier hs-var">expr</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-75"></span><span>        </span><span class="hs-comment">-- The case we care about: Application</span><span>
+</span><span id="line-76"></span><span>        </span><span id="local-6989586621682568184"><span class="annot"><span class="annottext">app :: Expr CoreBndr
+</span><a href="#local-6989586621682568184"><span class="hs-identifier hs-var">app</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="GHC.Core.html#App"><span class="hs-identifier hs-type">App</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-77"></span><span>          </span><span class="hs-comment">-- Here we have some application like `f v1 ... vN`, where v1 ... vN</span><span>
+</span><span id="line-78"></span><span>          </span><span class="hs-comment">-- should be the function's type arguments followed by the value</span><span>
+</span><span id="line-79"></span><span>          </span><span class="hs-comment">-- arguments. To determine if the `f` is an overloaded function, we</span><span>
+</span><span id="line-80"></span><span>          </span><span class="hs-comment">-- check if any of the arguments v1 ... vN are dictionaries.</span><span>
+</span><span id="line-81"></span><span>          </span><span class="hs-keyword">let</span><span>
+</span><span id="line-82"></span><span>            </span><span class="hs-special">(</span><span id="local-6989586621682568186"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568186"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682568187"><span class="annot"><span class="annottext">[Expr CoreBndr]
+</span><a href="#local-6989586621682568187"><span class="hs-identifier hs-var hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr -&gt; (Expr CoreBndr, [Expr CoreBndr])
+forall b. Expr b -&gt; (Expr b, [Expr b])
+</span><a href="GHC.Core.html#collectArgs"><span class="hs-identifier hs-var">collectArgs</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568184"><span class="hs-identifier hs-var">app</span></a></span><span>
+</span><span id="line-83"></span><span>            </span><span id="local-6989586621682568189"><span class="annot"><span class="annottext">resultTy :: Type
+</span><a href="#local-6989586621682568189"><span class="hs-identifier hs-var hs-var hs-var">resultTy</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; SDoc -&gt; Type -&gt; [Expr CoreBndr] -&gt; Type
+SDoc -&gt; Type -&gt; [Expr CoreBndr] -&gt; Type
+</span><a href="GHC.Core.Utils.html#applyTypeToArgs"><span class="hs-identifier hs-var">applyTypeToArgs</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+forall doc. IsOutput doc =&gt; doc
+</span><a href="GHC.Utils.Outputable.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; Expr CoreBndr -&gt; Type
+Expr CoreBndr -&gt; Type
+</span><a href="GHC.Core.Utils.html#exprType"><span class="hs-identifier hs-var">exprType</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568186"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Expr CoreBndr]
+</span><a href="#local-6989586621682568187"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span>          </span><span class="hs-comment">-- Recursively process the arguments first for no particular reason</span><span>
+</span><span id="line-86"></span><span>          </span><span id="local-6989586621682568192"><span class="annot"><a href="#local-6989586621682568192"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Expr CoreBndr
+ -&gt; ReaderT
+      LateCCEnv
+      (State (LateCCState OverloadedCallsCCState))
+      (Expr CoreBndr))
+-&gt; [Expr CoreBndr]
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     [Expr CoreBndr]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+</span><a href="#local-6989586621682568157"><span class="hs-identifier hs-var">processExpr</span></a></span><span> </span><span class="annot"><span class="annottext">[Expr CoreBndr]
+</span><a href="#local-6989586621682568187"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-87"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682568193"><span class="annot"><a href="#local-6989586621682568193"><span class="hs-identifier hs-var hs-var">app'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr -&gt; [Expr CoreBndr] -&gt; Expr CoreBndr
+</span><a href="GHC.Core.Make.html#mkCoreApps"><span class="hs-identifier hs-var">mkCoreApps</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568186"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">[Expr CoreBndr]
+</span><a href="#local-6989586621682568192"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span>          </span><span class="hs-keyword">if</span><span>
+</span><span id="line-90"></span><span>              </span><span class="hs-comment">-- Check if any of the arguments are dictionaries</span><span>
+</span><span id="line-91"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">any</span></span><span> </span><span class="annot"><a href="#local-6989586621682568196"><span class="hs-identifier hs-type">isDictExpr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682568192"><span class="hs-identifier hs-type">args</span></a></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span>              </span><span class="hs-comment">-- Avoid instrumenting dictionary functions, which may be</span><span>
+</span><span id="line-94"></span><span>              </span><span class="hs-comment">-- overloaded if there are superclasses, by checking if the result</span><span>
+</span><span id="line-95"></span><span>              </span><span class="hs-comment">-- type of the function is a dictionary type.</span><span>
+</span><span id="line-96"></span><span>            </span><span class="annot"><span class="hs-operator hs-type">&amp;&amp;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Predicate.html#isDictTy"><span class="hs-identifier hs-type">isDictTy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682568189"><span class="hs-identifier hs-type">resultTy</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>              </span><span class="hs-comment">-- Avoid instrumenting constraint selectors like eq_sel</span><span>
+</span><span id="line-99"></span><span>            </span><span class="annot"><span class="hs-operator hs-type">&amp;&amp;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Type.html#typeTypeOrConstraint"><span class="hs-identifier hs-type">typeTypeOrConstraint</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682568189"><span class="hs-identifier hs-type">resultTy</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">/=</span></span><span> </span><span class="annot"><a href="GHC.Types.Basic.html#ConstraintLike"><span class="hs-identifier hs-type">ConstraintLike</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span>              </span><span class="hs-comment">-- Avoid instrumenting join points.</span><span>
+</span><span id="line-102"></span><span>              </span><span class="hs-comment">-- (See comment in processBind above)</span><span>
+</span><span id="line-103"></span><span>            </span><span class="annot"><span class="hs-operator hs-type">&amp;&amp;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682568202"><span class="hs-identifier hs-type">isJoinVarExpr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682568186"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>          </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-105"></span><span>            </span><span class="hs-comment">-- Extract a name and source location from the function being</span><span>
+</span><span id="line-106"></span><span>            </span><span class="hs-comment">-- applied</span><span>
+</span><span id="line-107"></span><span>            </span><span class="hs-keyword">let</span><span>
+</span><span id="line-108"></span><span>              </span><span class="annot"><a href="#local-6989586621682568203"><span class="hs-identifier hs-type">cc_name</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span>
+</span><span id="line-109"></span><span>              </span><span id="local-6989586621682568203"><span class="annot"><a href="#local-6989586621682568203"><span class="hs-identifier hs-var hs-var">cc_name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-110"></span><span>                </span><span class="annot"><span class="annottext">String -&gt; FastString
+</span><a href="GHC.Data.FastString.html#fsLit"><span class="hs-identifier hs-var">fsLit</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; FastString) -&gt; String -&gt; FastString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; (Name -&gt; String) -&gt; Maybe Name -&gt; String
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&lt;no name available&gt;&quot;</span></span><span> </span><span class="annot"><span class="annottext">Name -&gt; String
+forall a. NamedThing a =&gt; a -&gt; String
+</span><a href="GHC.Types.Name.html#getOccString"><span class="hs-identifier hs-var">getOccString</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Expr CoreBndr -&gt; Maybe Name
+</span><a href="#local-6989586621682568206"><span class="hs-identifier hs-var">exprName</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568184"><span class="hs-identifier hs-var">app</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span>            </span><span id="local-6989586621682568207"><span class="annot"><a href="#local-6989586621682568207"><span class="hs-identifier hs-var">cc_srcspan</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-113"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.Strict.html#fromMaybe"><span class="hs-identifier hs-type">Strict.fromMaybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#UnhelpfulSpan"><span class="hs-identifier hs-type">UnhelpfulSpan</span></a></span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html#UnhelpfulNoLocationInfo"><span class="hs-identifier hs-type">UnhelpfulNoLocationInfo</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-114"></span><span>                </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Class.html#lift"><span class="hs-identifier hs-type">lift</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.State.Strict.html#gets"><span class="hs-identifier hs-type">gets</span></a></span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#lateCCState_extra"><span class="hs-identifier hs-var">lateCCState_extra</span></a></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span>            </span><span class="annot"><a href="GHC.Core.LateCC.Utils.html#insertCC"><span class="hs-identifier hs-type">insertCC</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682568203"><span class="hs-identifier hs-type">cc_name</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682568207"><span class="hs-identifier hs-type">cc_srcspan</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682568193"><span class="hs-identifier hs-type">app'</span></a></span><span>
+</span><span id="line-117"></span><span>          </span><span class="hs-keyword">else</span><span>
+</span><span id="line-118"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621682568193"><span class="hs-identifier hs-type">app'</span></a></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span>        </span><span class="hs-comment">-- For recursive constructors of Expr, we traverse the nested Exprs</span><span>
+</span><span id="line-121"></span><span>        </span><span class="annot"><a href="GHC.Core.html#Lam"><span class="hs-identifier hs-type">Lam</span></a></span><span> </span><span id="local-6989586621682568209"><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568209"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621682568210"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568210"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-122"></span><span>          </span><span class="annot"><span class="annottext">[CoreBndr] -&gt; Expr CoreBndr -&gt; Expr CoreBndr
+</span><a href="GHC.Core.Make.html#mkCoreLams"><span class="hs-identifier hs-var">mkCoreLams</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568209"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">(Expr CoreBndr -&gt; Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+</span><a href="#local-6989586621682568157"><span class="hs-identifier hs-var">processExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568210"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-123"></span><span>        </span><span class="annot"><a href="GHC.Core.html#Let"><span class="hs-identifier hs-type">Let</span></a></span><span> </span><span id="local-6989586621682568213"><span class="annot"><span class="annottext">CoreBind
+</span><a href="#local-6989586621682568213"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621682568214"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568214"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-124"></span><span>          </span><span class="annot"><span class="annottext">CoreBind -&gt; Expr CoreBndr -&gt; Expr CoreBndr
+</span><a href="GHC.Core.Make.html#mkCoreLet"><span class="hs-identifier hs-var">mkCoreLet</span></a></span><span> </span><span class="annot"><span class="annottext">(CoreBind -&gt; Expr CoreBndr -&gt; Expr CoreBndr)
+-&gt; LateCCM OverloadedCallsCCState CoreBind
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr -&gt; Expr CoreBndr)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">CoreBind -&gt; LateCCM OverloadedCallsCCState CoreBind
+</span><a href="#local-6989586621682568150"><span class="hs-identifier hs-var">processBind</span></a></span><span> </span><span class="annot"><span class="annottext">CoreBind
+</span><a href="#local-6989586621682568213"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">ReaderT
+  LateCCEnv
+  (State (LateCCState OverloadedCallsCCState))
+  (Expr CoreBndr -&gt; Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+forall a b.
+ReaderT
+  LateCCEnv (State (LateCCState OverloadedCallsCCState)) (a -&gt; b)
+-&gt; ReaderT LateCCEnv (State (LateCCState OverloadedCallsCCState)) a
+-&gt; ReaderT LateCCEnv (State (LateCCState OverloadedCallsCCState)) b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+</span><a href="#local-6989586621682568157"><span class="hs-identifier hs-var">processExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568214"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-125"></span><span>        </span><span class="annot"><a href="GHC.Core.html#Case"><span class="hs-identifier hs-type">Case</span></a></span><span> </span><span id="local-6989586621682568217"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568217"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621682568218"><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568218"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621682568219"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682568219"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621682568220"><span class="annot"><span class="annottext">[Alt CoreBndr]
+</span><a href="#local-6989586621682568220"><span class="hs-identifier hs-var">alts</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-126"></span><span>              </span><span class="annot"><span class="annottext">Expr CoreBndr
+-&gt; CoreBndr -&gt; Type -&gt; [Alt CoreBndr] -&gt; Expr CoreBndr
+forall b. Expr b -&gt; b -&gt; Type -&gt; [Alt b] -&gt; Expr b
+</span><a href="GHC.Core.html#Case"><span class="hs-identifier hs-var">Case</span></a></span><span>
+</span><span id="line-127"></span><span>          </span><span class="annot"><span class="annottext">(Expr CoreBndr
+ -&gt; CoreBndr -&gt; Type -&gt; [Alt CoreBndr] -&gt; Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (CoreBndr -&gt; Type -&gt; [Alt CoreBndr] -&gt; Expr CoreBndr)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+</span><a href="#local-6989586621682568157"><span class="hs-identifier hs-var">processExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568217"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-128"></span><span>          </span><span class="annot"><span class="annottext">ReaderT
+  LateCCEnv
+  (State (LateCCState OverloadedCallsCCState))
+  (CoreBndr -&gt; Type -&gt; [Alt CoreBndr] -&gt; Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv (State (LateCCState OverloadedCallsCCState)) CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Type -&gt; [Alt CoreBndr] -&gt; Expr CoreBndr)
+forall a b.
+ReaderT
+  LateCCEnv (State (LateCCState OverloadedCallsCCState)) (a -&gt; b)
+-&gt; ReaderT LateCCEnv (State (LateCCState OverloadedCallsCCState)) a
+-&gt; ReaderT LateCCEnv (State (LateCCState OverloadedCallsCCState)) b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">CoreBndr
+-&gt; ReaderT
+     LateCCEnv (State (LateCCState OverloadedCallsCCState)) CoreBndr
+forall a.
+a
+-&gt; ReaderT LateCCEnv (State (LateCCState OverloadedCallsCCState)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568218"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-129"></span><span>          </span><span class="annot"><span class="annottext">ReaderT
+  LateCCEnv
+  (State (LateCCState OverloadedCallsCCState))
+  (Type -&gt; [Alt CoreBndr] -&gt; Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv (State (LateCCState OverloadedCallsCCState)) Type
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     ([Alt CoreBndr] -&gt; Expr CoreBndr)
+forall a b.
+ReaderT
+  LateCCEnv (State (LateCCState OverloadedCallsCCState)) (a -&gt; b)
+-&gt; ReaderT LateCCEnv (State (LateCCState OverloadedCallsCCState)) a
+-&gt; ReaderT LateCCEnv (State (LateCCState OverloadedCallsCCState)) b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Type
+-&gt; ReaderT
+     LateCCEnv (State (LateCCState OverloadedCallsCCState)) Type
+forall a.
+a
+-&gt; ReaderT LateCCEnv (State (LateCCState OverloadedCallsCCState)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682568219"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-130"></span><span>          </span><span class="annot"><span class="annottext">ReaderT
+  LateCCEnv
+  (State (LateCCState OverloadedCallsCCState))
+  ([Alt CoreBndr] -&gt; Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     [Alt CoreBndr]
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+forall a b.
+ReaderT
+  LateCCEnv (State (LateCCState OverloadedCallsCCState)) (a -&gt; b)
+-&gt; ReaderT LateCCEnv (State (LateCCState OverloadedCallsCCState)) a
+-&gt; ReaderT LateCCEnv (State (LateCCState OverloadedCallsCCState)) b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Alt CoreBndr
+ -&gt; ReaderT
+      LateCCEnv
+      (State (LateCCState OverloadedCallsCCState))
+      (Alt CoreBndr))
+-&gt; [Alt CoreBndr]
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     [Alt CoreBndr]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="annot"><span class="annottext">Alt CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Alt CoreBndr)
+</span><a href="#local-6989586621682568221"><span class="hs-identifier hs-var">processAlt</span></a></span><span> </span><span class="annot"><span class="annottext">[Alt CoreBndr]
+</span><a href="#local-6989586621682568220"><span class="hs-identifier hs-var">alts</span></a></span><span>
+</span><span id="line-131"></span><span>        </span><span class="annot"><a href="GHC.Core.html#Cast"><span class="hs-identifier hs-type">Cast</span></a></span><span> </span><span id="local-6989586621682568223"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568223"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621682568224"><span class="annot"><span class="annottext">CoercionR
+</span><a href="#local-6989586621682568224"><span class="hs-identifier hs-var">co</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-132"></span><span>          </span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; Expr CoreBndr -&gt; CoercionR -&gt; Expr CoreBndr
+Expr CoreBndr -&gt; CoercionR -&gt; Expr CoreBndr
+</span><a href="GHC.Core.Utils.html#mkCast"><span class="hs-identifier hs-var">mkCast</span></a></span><span> </span><span class="annot"><span class="annottext">(Expr CoreBndr -&gt; CoercionR -&gt; Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (CoercionR -&gt; Expr CoreBndr)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+</span><a href="#local-6989586621682568157"><span class="hs-identifier hs-var">processExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568223"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="annot"><span class="annottext">ReaderT
+  LateCCEnv
+  (State (LateCCState OverloadedCallsCCState))
+  (CoercionR -&gt; Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv (State (LateCCState OverloadedCallsCCState)) CoercionR
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+forall a b.
+ReaderT
+  LateCCEnv (State (LateCCState OverloadedCallsCCState)) (a -&gt; b)
+-&gt; ReaderT LateCCEnv (State (LateCCState OverloadedCallsCCState)) a
+-&gt; ReaderT LateCCEnv (State (LateCCState OverloadedCallsCCState)) b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">CoercionR
+-&gt; ReaderT
+     LateCCEnv (State (LateCCState OverloadedCallsCCState)) CoercionR
+forall a.
+a
+-&gt; ReaderT LateCCEnv (State (LateCCState OverloadedCallsCCState)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CoercionR
+</span><a href="#local-6989586621682568224"><span class="hs-identifier hs-var">co</span></a></span><span>
+</span><span id="line-133"></span><span>        </span><span class="annot"><a href="GHC.Core.html#Tick"><span class="hs-identifier hs-type">Tick</span></a></span><span> </span><span id="local-6989586621682568227"><span class="annot"><span class="annottext">CoreTickish
+</span><a href="#local-6989586621682568227"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621682568228"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568228"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-134"></span><span>          </span><span class="annot"><span class="annottext">CoreTickish
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+forall a.
+CoreTickish
+-&gt; LateCCM OverloadedCallsCCState a
+-&gt; LateCCM OverloadedCallsCCState a
+</span><a href="#local-6989586621682568229"><span class="hs-identifier hs-var">trackSourceNote</span></a></span><span> </span><span class="annot"><span class="annottext">CoreTickish
+</span><a href="#local-6989586621682568227"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">(ReaderT
+   LateCCEnv
+   (State (LateCCState OverloadedCallsCCState))
+   (Expr CoreBndr)
+ -&gt; ReaderT
+      LateCCEnv
+      (State (LateCCState OverloadedCallsCCState))
+      (Expr CoreBndr))
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-135"></span><span>            </span><span class="annot"><span class="annottext">CoreTickish -&gt; Expr CoreBndr -&gt; Expr CoreBndr
+</span><a href="GHC.Core.Utils.html#mkTick"><span class="hs-identifier hs-var">mkTick</span></a></span><span> </span><span class="annot"><span class="annottext">CoreTickish
+</span><a href="#local-6989586621682568227"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">(Expr CoreBndr -&gt; Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+</span><a href="#local-6989586621682568157"><span class="hs-identifier hs-var">processExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568228"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span>        </span><span class="hs-comment">-- For non-recursive constructors of Expr, we do nothing</span><span>
+</span><span id="line-138"></span><span>        </span><span id="local-6989586621682568231"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568231"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+forall a.
+a
+-&gt; ReaderT LateCCEnv (State (LateCCState OverloadedCallsCCState)) a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568231"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span>    </span><span class="annot"><a href="#local-6989586621682568221"><span class="hs-identifier hs-type">processAlt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreAlt"><span class="hs-identifier hs-type">CoreAlt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCM"><span class="hs-identifier hs-type">LateCCM</span></a></span><span> </span><span class="annot"><a href="GHC.Core.LateCC.OverloadedCalls.html#OverloadedCallsCCState"><span class="hs-identifier hs-type">OverloadedCallsCCState</span></a></span><span> </span><span class="annot"><a href="GHC.Core.html#CoreAlt"><span class="hs-identifier hs-type">CoreAlt</span></a></span><span>
+</span><span id="line-141"></span><span>    </span><span id="local-6989586621682568221"><span class="annot"><span class="annottext">processAlt :: Alt CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Alt CoreBndr)
+</span><a href="#local-6989586621682568221"><span class="hs-identifier hs-var hs-var">processAlt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#Alt"><span class="hs-identifier hs-type">Alt</span></a></span><span> </span><span id="local-6989586621682568234"><span class="annot"><span class="annottext">AltCon
+</span><a href="#local-6989586621682568234"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621682568235"><span class="annot"><span class="annottext">[CoreBndr]
+</span><a href="#local-6989586621682568235"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span id="local-6989586621682568236"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568236"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AltCon -&gt; [CoreBndr] -&gt; Expr CoreBndr -&gt; Alt CoreBndr
+forall b. AltCon -&gt; [b] -&gt; Expr b -&gt; Alt b
+</span><a href="GHC.Core.html#Alt"><span class="hs-identifier hs-var">Alt</span></a></span><span> </span><span class="annot"><span class="annottext">AltCon
+</span><a href="#local-6989586621682568234"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">[CoreBndr]
+</span><a href="#local-6989586621682568235"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">(Expr CoreBndr -&gt; Alt CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Alt CoreBndr)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Expr CoreBndr)
+</span><a href="#local-6989586621682568157"><span class="hs-identifier hs-var">processExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568236"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span>    </span><span id="local-6989586621682568061"><span class="annot"><a href="#local-6989586621682568229"><span class="hs-identifier hs-type">trackSourceNote</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Tickish.html#CoreTickish"><span class="hs-identifier hs-type">CoreTickish</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCM"><span class="hs-identifier hs-type">LateCCM</span></a></span><span> </span><span class="annot"><a href="GHC.Core.LateCC.OverloadedCalls.html#OverloadedCallsCCState"><span class="hs-identifier hs-type">OverloadedCallsCCState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682568061"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCM"><span class="hs-identifier hs-type">LateCCM</span></a></span><span> </span><span class="annot"><a href="GHC.Core.LateCC.OverloadedCalls.html#OverloadedCallsCCState"><span class="hs-identifier hs-type">OverloadedCallsCCState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682568061"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-144"></span><span>    </span><span id="local-6989586621682568229"><span class="annot"><span class="annottext">trackSourceNote :: forall a.
+CoreTickish
+-&gt; LateCCM OverloadedCallsCCState a
+-&gt; LateCCM OverloadedCallsCCState a
+</span><a href="#local-6989586621682568229"><span class="hs-identifier hs-var hs-var">trackSourceNote</span></a></span></span><span> </span><span id="local-6989586621682568260"><span class="annot"><span class="annottext">CoreTickish
+</span><a href="#local-6989586621682568260"><span class="hs-identifier hs-var">tick</span></a></span></span><span> </span><span id="local-6989586621682568261"><span class="annot"><span class="annottext">LateCCM OverloadedCallsCCState a
+</span><a href="#local-6989586621682568261"><span class="hs-identifier hs-var">act</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-145"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">CoreTickish
+</span><a href="#local-6989586621682568260"><span class="hs-identifier hs-var">tick</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-146"></span><span>        </span><span class="annot"><a href="GHC.Types.Tickish.html#SourceNote"><span class="hs-identifier hs-type">SourceNote</span></a></span><span> </span><span id="local-6989586621682568263"><span class="annot"><span class="annottext">RealSrcSpan
+</span><a href="#local-6989586621682568263"><span class="hs-identifier hs-var">rss</span></a></span></span><span> </span><span class="annot"><span class="annottext">LexicalFastString
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-147"></span><span>          </span><span class="hs-comment">-- Prefer source notes from the current file</span><span>
+</span><span id="line-148"></span><span>          </span><span id="local-6989586621682568264"><span class="annot"><a href="#local-6989586621682568264"><span class="hs-identifier hs-var">in_current_file</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-149"></span><span>            </span><span class="annot"><span class="annottext">Bool -&gt; (FastString -&gt; Bool) -&gt; Maybe FastString -&gt; Bool
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ordering -&gt; Ordering -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">EQ</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Ordering -&gt; Bool)
+-&gt; (FastString -&gt; Ordering) -&gt; FastString -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">FastString -&gt; FastString -&gt; Ordering
+</span><a href="GHC.Data.FastString.html#lexicalCompareFS"><span class="hs-identifier hs-var">lexicalCompareFS</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RealSrcSpan -&gt; FastString
+</span><a href="GHC.Types.SrcLoc.html#srcSpanFile"><span class="hs-identifier hs-var">srcSpanFile</span></a></span><span> </span><span class="annot"><span class="annottext">RealSrcSpan
+</span><a href="#local-6989586621682568263"><span class="hs-identifier hs-var">rss</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe FastString -&gt; Bool)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Maybe FastString)
+-&gt; ReaderT
+     LateCCEnv (State (LateCCState OverloadedCallsCCState)) Bool
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span>
+</span><span id="line-150"></span><span>              </span><span class="annot"><span class="annottext">(LateCCEnv -&gt; Maybe FastString)
+-&gt; ReaderT
+     LateCCEnv
+     (State (LateCCState OverloadedCallsCCState))
+     (Maybe FastString)
+forall (m :: * -&gt; *) r a. Monad m =&gt; (r -&gt; a) -&gt; ReaderT r m a
+</span><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Reader.html#asks"><span class="hs-identifier hs-var">asks</span></a></span><span> </span><span class="annot"><span class="annottext">LateCCEnv -&gt; Maybe FastString
+</span><a href="GHC.Core.LateCC.Types.html#lateCCEnv_file"><span class="hs-identifier hs-var">lateCCEnv_file</span></a></span><span>
+</span><span id="line-151"></span><span>          </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="hs-identifier hs-type">not</span></span><span> </span><span class="annot"><a href="#local-6989586621682568264"><span class="hs-identifier hs-type">in_current_file</span></a></span><span> </span><span class="hs-keyword">then</span><span>
+</span><span id="line-152"></span><span>            </span><span class="annot"><a href="#local-6989586621682568261"><span class="hs-identifier hs-type">act</span></a></span><span>
+</span><span id="line-153"></span><span>          </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-154"></span><span>            </span><span id="local-6989586621682568270"><span class="annot"><a href="#local-6989586621682568270"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Class.html#lift"><span class="hs-identifier hs-type">lift</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.State.Strict.html#gets"><span class="hs-identifier hs-type">gets</span></a></span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#lateCCState_extra"><span class="hs-identifier hs-var">lateCCState_extra</span></a></span><span>
+</span><span id="line-155"></span><span>            </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Class.html#lift"><span class="hs-identifier hs-type">lift</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.State.Strict.html#modify"><span class="hs-identifier hs-type">modify</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682568272"><span class="annot"><span class="annottext">LateCCState OverloadedCallsCCState
+</span><a href="#local-6989586621682568272"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-156"></span><span>              </span><span class="annot"><span class="annottext">LateCCState OverloadedCallsCCState
+</span><a href="#local-6989586621682568272"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#lateCCState_extra"><span class="hs-identifier hs-var">lateCCState_extra</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-157"></span><span>                    </span><span class="annot"><a href="GHC.Data.Strict.html#Just"><span class="hs-identifier hs-type">Strict.Just</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html#RealSrcSpan"><span class="hs-identifier hs-type">RealSrcSpan</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682568263"><span class="hs-identifier hs-type">rss</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">mempty</span></span><span>
+</span><span id="line-158"></span><span>                </span><span class="hs-special">}</span><span>
+</span><span id="line-159"></span><span>            </span><span id="local-6989586621682568275"><span class="annot"><a href="#local-6989586621682568275"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621682568261"><span class="hs-identifier hs-type">act</span></a></span><span>
+</span><span id="line-160"></span><span>            </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Class.html#lift"><span class="hs-identifier hs-type">lift</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.State.Strict.html#modify"><span class="hs-identifier hs-type">modify</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682568276"><span class="annot"><span class="annottext">LateCCState OverloadedCallsCCState
+</span><a href="#local-6989586621682568276"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-161"></span><span>              </span><span class="annot"><span class="annottext">LateCCState OverloadedCallsCCState
+</span><a href="#local-6989586621682568276"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#lateCCState_extra"><span class="hs-identifier hs-var">lateCCState_extra</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621682568270"><span class="hs-identifier hs-type">loc</span></a></span><span>
+</span><span id="line-162"></span><span>                </span><span class="hs-special">}</span><span>
+</span><span id="line-163"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621682568275"><span class="hs-identifier hs-type">x</span></a></span><span>
+</span><span id="line-164"></span><span>        </span><span class="annot"><span class="annottext">CoreTickish
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-165"></span><span>          </span><span class="annot"><span class="annottext">LateCCM OverloadedCallsCCState a
+</span><a href="#local-6989586621682568261"><span class="hs-identifier hs-var">act</span></a></span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span>    </span><span class="hs-comment">-- Utility functions</span><span>
+</span><span id="line-168"></span><span>
+</span><span id="line-169"></span><span>    </span><span class="hs-comment">-- Extract a Name from an expression. If it is an application, attempt to</span><span>
+</span><span id="line-170"></span><span>    </span><span class="hs-comment">-- extract a name from the applied function. If it is a variable, return the</span><span>
+</span><span id="line-171"></span><span>    </span><span class="hs-comment">-- Name of the variable. If it is a tick/cast, attempt to extract a Name</span><span>
+</span><span id="line-172"></span><span>    </span><span class="hs-comment">-- from the expression held in the tick/cast. Otherwise return Nothing.</span><span>
+</span><span id="line-173"></span><span>    </span><span class="annot"><a href="#local-6989586621682568206"><span class="hs-identifier hs-type">exprName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span>
+</span><span id="line-174"></span><span>    </span><span id="local-6989586621682568206"><span class="annot"><span class="annottext">exprName :: Expr CoreBndr -&gt; Maybe Name
+</span><a href="#local-6989586621682568206"><span class="hs-identifier hs-var hs-var">exprName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-175"></span><span>        </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-176"></span><span>          </span><span class="annot"><a href="GHC.Core.html#App"><span class="hs-identifier hs-type">App</span></a></span><span> </span><span id="local-6989586621682568277"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568277"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-177"></span><span>            </span><span class="annot"><span class="annottext">Expr CoreBndr -&gt; Maybe Name
+</span><a href="#local-6989586621682568206"><span class="hs-identifier hs-var">exprName</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568277"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-178"></span><span>          </span><span class="annot"><a href="GHC.Core.html#Var"><span class="hs-identifier hs-type">Var</span></a></span><span> </span><span id="local-6989586621682568279"><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568279"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-179"></span><span>            </span><span class="annot"><span class="annottext">Name -&gt; Maybe Name
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CoreBndr -&gt; Name
+</span><a href="GHC.Types.Id.html#idName"><span class="hs-identifier hs-var">idName</span></a></span><span> </span><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568279"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-180"></span><span>          </span><span class="annot"><a href="GHC.Core.html#Tick"><span class="hs-identifier hs-type">Tick</span></a></span><span> </span><span class="annot"><span class="annottext">CoreTickish
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682568281"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568281"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-181"></span><span>            </span><span class="annot"><span class="annottext">Expr CoreBndr -&gt; Maybe Name
+</span><a href="#local-6989586621682568206"><span class="hs-identifier hs-var">exprName</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568281"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-182"></span><span>          </span><span class="annot"><a href="GHC.Core.html#Cast"><span class="hs-identifier hs-type">Cast</span></a></span><span> </span><span id="local-6989586621682568282"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568282"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="annot"><span class="annottext">CoercionR
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-183"></span><span>            </span><span class="annot"><span class="annottext">Expr CoreBndr -&gt; Maybe Name
+</span><a href="#local-6989586621682568206"><span class="hs-identifier hs-var">exprName</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568282"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-184"></span><span>          </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-185"></span><span>            </span><span class="annot"><span class="annottext">Maybe Name
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-186"></span><span>
+</span><span id="line-187"></span><span>    </span><span class="hs-comment">-- Determine whether an expression is a dictionary</span><span>
+</span><span id="line-188"></span><span>    </span><span class="annot"><a href="#local-6989586621682568196"><span class="hs-identifier hs-type">isDictExpr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-189"></span><span>    </span><span id="local-6989586621682568196"><span class="annot"><span class="annottext">isDictExpr :: Expr CoreBndr -&gt; Bool
+</span><a href="#local-6989586621682568196"><span class="hs-identifier hs-var hs-var">isDictExpr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-190"></span><span>        </span><span class="annot"><span class="annottext">Bool -&gt; (Type -&gt; Bool) -&gt; Maybe Type -&gt; Bool
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Type -&gt; Bool
+</span><a href="GHC.Core.Predicate.html#isDictTy"><span class="hs-identifier hs-var">isDictTy</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe Type -&gt; Bool)
+-&gt; (Expr CoreBndr -&gt; Maybe Type) -&gt; Expr CoreBndr -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr -&gt; Maybe Type
+</span><a href="#local-6989586621682568283"><span class="hs-identifier hs-var">exprType'</span></a></span><span>
+</span><span id="line-191"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-192"></span><span>        </span><span class="annot"><a href="#local-6989586621682568283"><span class="hs-identifier hs-type">exprType'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-193"></span><span>        </span><span id="local-6989586621682568283"><span class="annot"><span class="annottext">exprType' :: Expr CoreBndr -&gt; Maybe Type
+</span><a href="#local-6989586621682568283"><span class="hs-identifier hs-var hs-var">exprType'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-194"></span><span>            </span><span class="annot"><a href="GHC.Core.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Type
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-195"></span><span>            </span><span id="local-6989586621682568285"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568285"><span class="hs-identifier hs-var">expr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Type -&gt; Maybe Type
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(Type -&gt; Maybe Type) -&gt; Type -&gt; Maybe Type
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; Expr CoreBndr -&gt; Type
+Expr CoreBndr -&gt; Type
+</span><a href="GHC.Core.Utils.html#exprType"><span class="hs-identifier hs-var">exprType</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568285"><span class="hs-identifier hs-var">expr</span></a></span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span>    </span><span class="hs-comment">-- Determine whether an expression is a join variable</span><span>
+</span><span id="line-198"></span><span>    </span><span class="annot"><a href="#local-6989586621682568202"><span class="hs-identifier hs-type">isJoinVarExpr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-199"></span><span>    </span><span id="local-6989586621682568202"><span class="annot"><span class="annottext">isJoinVarExpr :: Expr CoreBndr -&gt; Bool
+</span><a href="#local-6989586621682568202"><span class="hs-identifier hs-var hs-var">isJoinVarExpr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-200"></span><span>        </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-201"></span><span>          </span><span class="annot"><a href="GHC.Core.html#Var"><span class="hs-identifier hs-type">Var</span></a></span><span> </span><span id="local-6989586621682568286"><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568286"><span class="hs-identifier hs-var">var</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CoreBndr -&gt; Bool
+</span><a href="GHC.Types.Id.html#isJoinId"><span class="hs-identifier hs-var">isJoinId</span></a></span><span> </span><span class="annot"><span class="annottext">CoreBndr
+</span><a href="#local-6989586621682568286"><span class="hs-identifier hs-var">var</span></a></span><span>
+</span><span id="line-202"></span><span>          </span><span class="annot"><a href="GHC.Core.html#Tick"><span class="hs-identifier hs-type">Tick</span></a></span><span> </span><span class="annot"><span class="annottext">CoreTickish
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682568287"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568287"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr -&gt; Bool
+</span><a href="#local-6989586621682568202"><span class="hs-identifier hs-var">isJoinVarExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568287"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-203"></span><span>          </span><span class="annot"><a href="GHC.Core.html#Cast"><span class="hs-identifier hs-type">Cast</span></a></span><span> </span><span id="local-6989586621682568288"><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568288"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="annot"><span class="annottext">CoercionR
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr -&gt; Bool
+</span><a href="#local-6989586621682568202"><span class="hs-identifier hs-var">isJoinVarExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><a href="#local-6989586621682568288"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-204"></span><span>          </span><span class="annot"><span class="annottext">Expr CoreBndr
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-205"></span></pre></body></html>

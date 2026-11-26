@@ -1,0 +1,955 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module     : Algebra.Graph.Acyclic.AdjacencyMap</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright  : (c) Andrey Mokhov 2016-2022</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License    : MIT (see the file LICENSE)</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Maintainer : andrey.mokhov@gmail.com</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Stability  : experimental</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- __Alga__ is a library for algebraic construction and manipulation of graphs</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- in Haskell. See &lt;https://github.com/snowleopard/alga-paper this paper&gt; for</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- the motivation behind the library, the underlying theory, and implementation</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- details.</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- This module defines the 'AdjacencyMap' data type and for acyclic graphs, as</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- well as associated operations and algorithms. To avoid name clashes with</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- &quot;Algebra.Graph.AdjacencyMap&quot;, this module can be imported qualified:</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- import qualified Algebra.Graph.Acyclic.AdjacencyMap as Acyclic</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html"><span class="hs-identifier">Algebra.Graph.Acyclic.AdjacencyMap</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Data structure</span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier">AdjacencyMap</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#fromAcyclic"><span class="hs-identifier">fromAcyclic</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Basic graph construction primitives</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#empty"><span class="hs-identifier">empty</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertex"><span class="hs-identifier">vertex</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertices"><span class="hs-identifier">vertices</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#union"><span class="hs-identifier">union</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#join"><span class="hs-identifier">join</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Relations on graphs</span></span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#isSubgraphOf"><span class="hs-identifier">isSubgraphOf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Graph properties</span></span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#isEmpty"><span class="hs-identifier">isEmpty</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#hasVertex"><span class="hs-identifier">hasVertex</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#hasEdge"><span class="hs-identifier">hasEdge</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertexCount"><span class="hs-identifier">vertexCount</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#edgeCount"><span class="hs-identifier">edgeCount</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertexList"><span class="hs-identifier">vertexList</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#edgeList"><span class="hs-identifier">edgeList</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#adjacencyList"><span class="hs-identifier">adjacencyList</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertexSet"><span class="hs-identifier">vertexSet</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#edgeSet"><span class="hs-identifier">edgeSet</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#preSet"><span class="hs-identifier">preSet</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#postSet"><span class="hs-identifier">postSet</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Graph transformation</span></span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#removeVertex"><span class="hs-identifier">removeVertex</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#removeEdge"><span class="hs-identifier">removeEdge</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#transpose"><span class="hs-identifier">transpose</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#induce"><span class="hs-identifier">induce</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#induceJust"><span class="hs-identifier">induceJust</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Graph composition</span></span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#box"><span class="hs-identifier">box</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Relational operations</span></span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#transitiveClosure"><span class="hs-identifier">transitiveClosure</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Algorithms</span></span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#topSort"><span class="hs-identifier">topSort</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#scc"><span class="hs-identifier">scc</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Conversion to acyclic graphs</span></span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#toAcyclic"><span class="hs-identifier">toAcyclic</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#toAcyclicOrd"><span class="hs-identifier">toAcyclicOrd</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#shrink"><span class="hs-identifier">shrink</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Miscellaneous</span></span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#consistent"><span class="hs-identifier">consistent</span></a></span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Set</span></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Coerce</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">coerce</span></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html"><span class="hs-identifier">Algebra.Graph.AdjacencyMap</span></a></span><span>           </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">AM</span></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.Algorithm.html"><span class="hs-identifier">Algebra.Graph.AdjacencyMap.Algorithm</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">AM</span></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Algebra.Graph.NonEmpty.AdjacencyMap.html"><span class="hs-identifier">Algebra.Graph.NonEmpty.AdjacencyMap</span></a></span><span>  </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NAM</span></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.NonEmpty</span></span><span>                   </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NonEmpty</span></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span>                             </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span>                             </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="annot"><span class="hs-comment">{-| The 'AdjacencyMap' data type represents an acyclic graph by a map of
+vertices to their adjacency sets. Although the internal representation allows
+for cycles, the methods provided by this module cannot be used to construct a
+graph with cycles.
+
+The 'Show' instance is defined using basic graph construction primitives where
+possible, falling back to 'toAcyclic' and &quot;Algebra.Graph.AdjacencyMap&quot;
+otherwise:
+
+@
+show empty                == &quot;empty&quot;
+show (shrink 1)           == &quot;vertex 1&quot;
+show (shrink $ 1 + 2)     == &quot;vertices [1,2]&quot;
+show (shrink $ 1 * 2)     == &quot;(fromJust . toAcyclic) (edge 1 2)&quot;
+show (shrink $ 1 * 2 * 3) == &quot;(fromJust . toAcyclic) (edges [(1,2),(1,3),(2,3)])&quot;
+show (shrink $ 1 * 2 + 3) == &quot;(fromJust . toAcyclic) (overlay (vertex 3) (edge 1 2))&quot;
+@
+
+The total order on graphs is defined using /size-lexicographic/ comparison:
+
+* Compare the number of vertices. In case of a tie, continue.
+* Compare the sets of vertices. In case of a tie, continue.
+* Compare the number of edges. In case of a tie, continue.
+* Compare the sets of edges.
+
+Note that the resulting order refines the 'isSubgraphOf' relation:
+
+@'isSubgraphOf' x y ==&gt; x &lt;= y@
+-}</span></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- TODO: Improve the Show instance.</span><span>
+</span><span id="line-96"></span><span class="hs-keyword">newtype</span><span> </span><span id="AdjacencyMap"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-var">AdjacencyMap</span></a></span></span><span> </span><span id="local-6989586621679158067"><span class="annot"><a href="#local-6989586621679158067"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="AAM"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AAM"><span class="hs-identifier hs-var">AAM</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-97"></span><span>    </span><span class="hs-comment">-- | Extract the underlying acyclic &quot;Algebra.Graph.AdjacencyMap&quot;.</span><span>
+</span><span id="line-98"></span><span>    </span><span class="hs-comment">-- Complexity: /O(1)/ time and memory.</span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-100"></span><span>    </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-comment">-- fromAcyclic 'empty'                == 'AM.empty'</span><span>
+</span><span id="line-102"></span><span>    </span><span class="hs-comment">-- fromAcyclic . 'vertex'             == 'AM.vertex'</span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-comment">-- fromAcyclic (shrink $ 1 * 3 + 2) == 1 * 3 + 2</span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-comment">-- 'AM.vertexCount' . fromAcyclic        == 'vertexCount'</span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-comment">-- 'AM.edgeCount'   . fromAcyclic        == 'edgeCount'</span><span>
+</span><span id="line-106"></span><span>    </span><span class="hs-comment">-- 'AM.isAcyclic'   . fromAcyclic        == 'const' True</span><span>
+</span><span id="line-107"></span><span>    </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-108"></span><span>    </span><span id="fromAcyclic"><span class="annot"><span class="annottext">forall a. AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#fromAcyclic"><span class="hs-identifier hs-var hs-var">fromAcyclic</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AM.AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158067"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-109"></span><span>    </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679158250"><span id="local-6989586621679158255"><span class="annot"><span class="annottext">AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+(AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool)
+-&gt; (AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool)
+-&gt; Eq (AdjacencyMap a)
+forall a. Eq a =&gt; AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall a. Eq a =&gt; AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+== :: AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+$c/= :: forall a. Eq a =&gt; AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+/= :: AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679158266"><span id="local-6989586621679158271"><span id="local-6989586621679158275"><span id="local-6989586621679158279"><span id="local-6989586621679158283"><span id="local-6989586621679158287"><span id="local-6989586621679158291"><span class="annot"><span class="annottext">Eq (AdjacencyMap a)
+Eq (AdjacencyMap a) =&gt;
+(AdjacencyMap a -&gt; AdjacencyMap a -&gt; Ordering)
+-&gt; (AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool)
+-&gt; (AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool)
+-&gt; (AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool)
+-&gt; (AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool)
+-&gt; (AdjacencyMap a -&gt; AdjacencyMap a -&gt; AdjacencyMap a)
+-&gt; (AdjacencyMap a -&gt; AdjacencyMap a -&gt; AdjacencyMap a)
+-&gt; Ord (AdjacencyMap a)
+AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+AdjacencyMap a -&gt; AdjacencyMap a -&gt; Ordering
+AdjacencyMap a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall a. Ord a =&gt; Eq (AdjacencyMap a)
+forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a -&gt; Ordering
+forall a.
+Ord a =&gt;
+AdjacencyMap a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+$ccompare :: forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a -&gt; Ordering
+compare :: AdjacencyMap a -&gt; AdjacencyMap a -&gt; Ordering
+$c&lt; :: forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+&lt; :: AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+$c&lt;= :: forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+&lt;= :: AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+$c&gt; :: forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+&gt; :: AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+$c&gt;= :: forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+&gt;= :: AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+$cmax :: forall a.
+Ord a =&gt;
+AdjacencyMap a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+max :: AdjacencyMap a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+$cmin :: forall a.
+Ord a =&gt;
+AdjacencyMap a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+min :: AdjacencyMap a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679158085"><span id="local-6989586621679158307"><span id="local-6989586621679158311"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158085"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679158085"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158085"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-112"></span><span>    </span><span id="local-6989586621679158326"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; AdjacencyMap a -&gt; ShowS
+</span><a href="#local-6989586621679158326"><span class="hs-identifier hs-var hs-var hs-var">showsPrec</span></a></span></span><span> </span><span id="local-6989586621679158328"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158328"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679158329"><span class="annot"><span class="annottext">aam :: AdjacencyMap a
+</span><a href="#local-6989586621679158329"><span class="hs-identifier hs-var">aam</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AAM"><span class="hs-identifier hs-type">AAM</span></a></span><span> </span><span id="local-6989586621679158330"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158330"><span class="hs-identifier hs-var">am</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679158332"><span class="hs-identifier hs-var">vs</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;empty&quot;</span></span><span>
+</span><span id="line-114"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[(a, a)] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[(a, a)]
+</span><a href="#local-6989586621679158334"><span class="hs-identifier hs-var">es</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ShowS -&gt; ShowS
+</span><span class="hs-identifier hs-var">showParen</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158328"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ShowS -&gt; ShowS) -&gt; ShowS -&gt; ShowS
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; ShowS
+forall {a}. Show a =&gt; [a] -&gt; ShowS
+</span><a href="#local-6989586621679158336"><span class="hs-identifier hs-var">vshow</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679158332"><span class="hs-identifier hs-var">vs</span></a></span><span>
+</span><span id="line-115"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ShowS -&gt; ShowS
+</span><span class="hs-identifier hs-var">showParen</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158328"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ShowS -&gt; ShowS) -&gt; ShowS -&gt; ShowS
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;(fromJust . toAcyclic) (&quot;</span></span><span>
+</span><span id="line-116"></span><span>                     </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158330"><span class="hs-identifier hs-var">am</span></a></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;)&quot;</span></span><span>
+</span><span id="line-117"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-118"></span><span>        </span><span id="local-6989586621679158332"><span class="annot"><span class="annottext">vs :: [a]
+</span><a href="#local-6989586621679158332"><span class="hs-identifier hs-var hs-var">vs</span></a></span></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; [a]
+forall a. AdjacencyMap a -&gt; [a]
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertexList"><span class="hs-identifier hs-var">vertexList</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158329"><span class="hs-identifier hs-var">aam</span></a></span><span>
+</span><span id="line-119"></span><span>        </span><span id="local-6989586621679158334"><span class="annot"><span class="annottext">es :: [(a, a)]
+</span><a href="#local-6989586621679158334"><span class="hs-identifier hs-var hs-var">es</span></a></span></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; [(a, a)]
+forall a. AdjacencyMap a -&gt; [(a, a)]
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#edgeList"><span class="hs-identifier hs-var">edgeList</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158329"><span class="hs-identifier hs-var">aam</span></a></span><span>
+</span><span id="line-120"></span><span>        </span><span id="local-6989586621679158336"><span class="annot"><span class="annottext">vshow :: [a] -&gt; ShowS
+</span><a href="#local-6989586621679158336"><span class="hs-identifier hs-var hs-var">vshow</span></a></span></span><span> </span><span class="hs-special">[</span><span id="local-6989586621679158343"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679158343"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">]</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;vertex &quot;</span></span><span>   </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">11</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679158343"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-121"></span><span>        </span><span class="annot"><a href="#local-6989586621679158336"><span class="hs-identifier hs-var">vshow</span></a></span><span> </span><span id="local-6989586621679158344"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679158344"><span class="hs-identifier hs-var">xs</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;vertices &quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [a] -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">11</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679158344"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- | Construct the /empty graph/.</span><span>
+</span><span id="line-124"></span><span class="hs-comment">--</span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- 'isEmpty'     empty == True</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- 'hasVertex' x empty == False</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- 'vertexCount' empty == 0</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- 'edgeCount'   empty == 0</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-131"></span><span id="local-6989586621679158102"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#empty"><span class="hs-identifier hs-type">empty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158102"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-132"></span><span id="empty"><span class="annot"><span class="annottext">empty :: forall a. AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#empty"><span class="hs-identifier hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; AdjacencyMap a
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+forall a. AdjacencyMap a
+</span><a href="Algebra.Graph.AdjacencyMap.html#empty"><span class="hs-identifier hs-var">AM.empty</span></a></span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- | Construct the graph comprising /a single isolated vertex/.</span><span>
+</span><span id="line-135"></span><span class="hs-comment">--</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- 'isEmpty'     (vertex x) == False</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- 'hasVertex' x (vertex y) == (x == y)</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- 'vertexCount' (vertex x) == 1</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- 'edgeCount'   (vertex x) == 0</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-142"></span><span id="local-6989586621679158105"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertex"><span class="hs-identifier hs-type">vertex</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679158105"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158105"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-143"></span><span id="vertex"><span class="annot"><span class="annottext">vertex :: forall a. a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertex"><span class="hs-identifier hs-var hs-var">vertex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; AdjacencyMap a) -&gt; a -&gt; AdjacencyMap a
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; AdjacencyMap a
+forall a. a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.AdjacencyMap.html#vertex"><span class="hs-identifier hs-var">AM.vertex</span></a></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- | Construct the graph comprising a given list of isolated vertices.</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- Complexity: /O(L * log(L))/ time and /O(L)/ memory, where /L/ is the length</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- of the given list.</span><span>
+</span><span id="line-148"></span><span class="hs-comment">--</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- vertices []            == 'empty'</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- vertices [x]           == 'vertex' x</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- 'hasVertex' x . vertices == 'elem' x</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- 'vertexCount' . vertices == 'length' . 'Data.List.nub'</span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- 'vertexSet'   . vertices == Set.'Set.fromList'</span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-156"></span><span id="local-6989586621679158108"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertices"><span class="hs-identifier hs-type">vertices</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158108"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679158108"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158108"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-157"></span><span id="vertices"><span class="annot"><span class="annottext">vertices :: forall a. Ord a =&gt; [a] -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertices"><span class="hs-identifier hs-var hs-var">vertices</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([a] -&gt; AdjacencyMap a) -&gt; [a] -&gt; AdjacencyMap a
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; AdjacencyMap a
+forall a. Ord a =&gt; [a] -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.AdjacencyMap.html#vertices"><span class="hs-identifier hs-var">AM.vertices</span></a></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- | Construct the disjoint /union/ of two graphs.</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- Complexity: /O((n + m) * log(n))/ time and /O(n + m)/ memory.</span><span>
+</span><span id="line-161"></span><span class="hs-comment">--</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- 'vertexSet' (union x y) == Set.'Set.unions' [ Set.'Set.map' 'Left'  ('vertexSet' x)</span><span>
+</span><span id="line-164"></span><span class="hs-comment">--                                     , Set.'Set.map' 'Right' ('vertexSet' y) ]</span><span>
+</span><span id="line-165"></span><span class="hs-comment">--</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- 'edgeSet'   (union x y) == Set.'Set.unions' [ Set.'Set.map' ('Data.Bifunctor.bimap' 'Left'  'Left' ) ('edgeSet' x)</span><span>
+</span><span id="line-167"></span><span class="hs-comment">--                                     , Set.'Set.map' ('Data.Bifunctor.bimap' 'Right' 'Right') ('edgeSet' y) ]</span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-169"></span><span id="local-6989586621679158111"><span id="local-6989586621679158112"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#union"><span class="hs-identifier hs-type">union</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158111"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158112"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158111"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158112"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679158111"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158112"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-170"></span><span id="union"><span class="annot"><span class="annottext">union :: forall a b.
+(Ord a, Ord b) =&gt;
+AdjacencyMap a -&gt; AdjacencyMap b -&gt; AdjacencyMap (Either a b)
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#union"><span class="hs-identifier hs-var hs-var">union</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AAM"><span class="hs-identifier hs-type">AAM</span></a></span><span> </span><span id="local-6989586621679158364"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158364"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AAM"><span class="hs-identifier hs-type">AAM</span></a></span><span> </span><span id="local-6989586621679158365"><span class="annot"><span class="annottext">AdjacencyMap b
+</span><a href="#local-6989586621679158365"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap (Either a b) -&gt; AdjacencyMap (Either a b)
+forall a. AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AAM"><span class="hs-identifier hs-var">AAM</span></a></span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap (Either a b) -&gt; AdjacencyMap (Either a b))
+-&gt; AdjacencyMap (Either a b) -&gt; AdjacencyMap (Either a b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap (Either a b)
+-&gt; AdjacencyMap (Either a b) -&gt; AdjacencyMap (Either a b)
+forall a.
+Ord a =&gt;
+AdjacencyMap a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.AdjacencyMap.html#overlay"><span class="hs-identifier hs-var">AM.overlay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; Either a b) -&gt; AdjacencyMap a -&gt; AdjacencyMap (Either a b)
+forall a b.
+(Ord a, Ord b) =&gt;
+(a -&gt; b) -&gt; AdjacencyMap a -&gt; AdjacencyMap b
+</span><a href="Algebra.Graph.AdjacencyMap.html#gmap"><span class="hs-identifier hs-var">AM.gmap</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either a b
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158364"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(b -&gt; Either a b) -&gt; AdjacencyMap b -&gt; AdjacencyMap (Either a b)
+forall a b.
+(Ord a, Ord b) =&gt;
+(a -&gt; b) -&gt; AdjacencyMap a -&gt; AdjacencyMap b
+</span><a href="Algebra.Graph.AdjacencyMap.html#gmap"><span class="hs-identifier hs-var">AM.gmap</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; Either a b
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap b
+</span><a href="#local-6989586621679158365"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- | Construct the /join/ of two graphs.</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- Complexity: /O((n + m) * log(n))/ time and /O(n + m)/ memory.</span><span>
+</span><span id="line-174"></span><span class="hs-comment">--</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- 'vertexSet' (join x y) == Set.'Set.unions' [ Set.'Set.map' 'Left'  ('vertexSet' x)</span><span>
+</span><span id="line-177"></span><span class="hs-comment">--                                    , Set.'Set.map' 'Right' ('vertexSet' y) ]</span><span>
+</span><span id="line-178"></span><span class="hs-comment">--</span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- 'edgeSet'   (join x y) == Set.'Set.unions' [ Set.'Set.map' ('Data.Bifunctor.bimap' 'Left'  'Left' ) ('edgeSet' x)</span><span>
+</span><span id="line-180"></span><span class="hs-comment">--                                    , Set.'Set.map' ('Data.Bifunctor.bimap' 'Right' 'Right') ('edgeSet' y)</span><span>
+</span><span id="line-181"></span><span class="hs-comment">--                                    , Set.'Set.map' ('Data.Bifunctor.bimap' 'Left'  'Right') (Set.'Set.cartesianProduct' ('vertexSet' x) ('vertexSet' y)) ]</span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-183"></span><span id="local-6989586621679158369"><span id="local-6989586621679158370"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#join"><span class="hs-identifier hs-type">join</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158369"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158370"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158369"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158370"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679158369"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158370"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-184"></span><span id="join"><span class="annot"><span class="annottext">join :: forall a b.
+(Ord a, Ord b) =&gt;
+AdjacencyMap a -&gt; AdjacencyMap b -&gt; AdjacencyMap (Either a b)
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#join"><span class="hs-identifier hs-var hs-var">join</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AAM"><span class="hs-identifier hs-type">AAM</span></a></span><span> </span><span id="local-6989586621679158378"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158378"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AAM"><span class="hs-identifier hs-type">AAM</span></a></span><span> </span><span id="local-6989586621679158379"><span class="annot"><span class="annottext">AdjacencyMap b
+</span><a href="#local-6989586621679158379"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap (Either a b) -&gt; AdjacencyMap (Either a b)
+forall a. AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AAM"><span class="hs-identifier hs-var">AAM</span></a></span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap (Either a b) -&gt; AdjacencyMap (Either a b))
+-&gt; AdjacencyMap (Either a b) -&gt; AdjacencyMap (Either a b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap (Either a b)
+-&gt; AdjacencyMap (Either a b) -&gt; AdjacencyMap (Either a b)
+forall a.
+Ord a =&gt;
+AdjacencyMap a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.AdjacencyMap.html#connect"><span class="hs-identifier hs-var">AM.connect</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; Either a b) -&gt; AdjacencyMap a -&gt; AdjacencyMap (Either a b)
+forall a b.
+(Ord a, Ord b) =&gt;
+(a -&gt; b) -&gt; AdjacencyMap a -&gt; AdjacencyMap b
+</span><a href="Algebra.Graph.AdjacencyMap.html#gmap"><span class="hs-identifier hs-var">AM.gmap</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either a b
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158378"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(b -&gt; Either a b) -&gt; AdjacencyMap b -&gt; AdjacencyMap (Either a b)
+forall a b.
+(Ord a, Ord b) =&gt;
+(a -&gt; b) -&gt; AdjacencyMap a -&gt; AdjacencyMap b
+</span><a href="Algebra.Graph.AdjacencyMap.html#gmap"><span class="hs-identifier hs-var">AM.gmap</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; Either a b
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap b
+</span><a href="#local-6989586621679158379"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- | The 'isSubgraphOf' function takes two graphs and returns 'True' if the</span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- first graph is a /subgraph/ of the second.</span><span>
+</span><span id="line-188"></span><span class="hs-comment">-- Complexity: /O((n + m) * log(n))/ time.</span><span>
+</span><span id="line-189"></span><span class="hs-comment">--</span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-191"></span><span class="hs-comment">-- isSubgraphOf 'empty'        x                     ==  True</span><span>
+</span><span id="line-192"></span><span class="hs-comment">-- isSubgraphOf ('vertex' x)   'empty'                 ==  False</span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- isSubgraphOf ('induce' p x) x                     ==  True</span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- isSubgraphOf x            ('transitiveClosure' x) ==  True</span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- isSubgraphOf x y                                ==&gt; x &lt;= y</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-197"></span><span id="local-6989586621679158381"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#isSubgraphOf"><span class="hs-identifier hs-type">isSubgraphOf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158381"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158381"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158381"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-198"></span><span id="isSubgraphOf"><span class="annot"><span class="annottext">isSubgraphOf :: forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#isSubgraphOf"><span class="hs-identifier hs-var hs-var">isSubgraphOf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool)
+-&gt; AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a -&gt; Bool
+</span><a href="Algebra.Graph.AdjacencyMap.html#isSubgraphOf"><span class="hs-identifier hs-var">AM.isSubgraphOf</span></a></span><span>
+</span><span id="line-199"></span><span>
+</span><span id="line-200"></span><span class="hs-comment">-- | Check if a graph is empty.</span><span>
+</span><span id="line-201"></span><span class="hs-comment">-- Complexity: /O(1)/ time.</span><span>
+</span><span id="line-202"></span><span class="hs-comment">--</span><span>
+</span><span id="line-203"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-204"></span><span class="hs-comment">-- isEmpty 'empty'                             == True</span><span>
+</span><span id="line-205"></span><span class="hs-comment">-- isEmpty ('vertex' x)                        == False</span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- isEmpty ('removeVertex' x $ 'vertex' x)       == True</span><span>
+</span><span id="line-207"></span><span class="hs-comment">-- isEmpty ('removeEdge' 1 2 $ shrink $ 1 * 2) == False</span><span>
+</span><span id="line-208"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-209"></span><span id="local-6989586621679158126"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#isEmpty"><span class="hs-identifier hs-type">isEmpty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158126"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-210"></span><span id="isEmpty"><span class="annot"><span class="annottext">isEmpty :: forall a. AdjacencyMap a -&gt; Bool
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#isEmpty"><span class="hs-identifier hs-var hs-var">isEmpty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; Bool) -&gt; AdjacencyMap a -&gt; Bool
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; Bool
+forall a. AdjacencyMap a -&gt; Bool
+</span><a href="Algebra.Graph.AdjacencyMap.html#isEmpty"><span class="hs-identifier hs-var">AM.isEmpty</span></a></span><span>
+</span><span id="line-211"></span><span>
+</span><span id="line-212"></span><span class="hs-comment">-- | Check if a graph contains a given vertex.</span><span>
+</span><span id="line-213"></span><span class="hs-comment">-- Complexity: /O(log(n))/ time.</span><span>
+</span><span id="line-214"></span><span class="hs-comment">--</span><span>
+</span><span id="line-215"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- hasVertex x 'empty'            == False</span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- hasVertex x ('vertex' y)       == (x == y)</span><span>
+</span><span id="line-218"></span><span class="hs-comment">-- hasVertex x . 'removeVertex' x == 'const' False</span><span>
+</span><span id="line-219"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-220"></span><span id="local-6989586621679158129"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#hasVertex"><span class="hs-identifier hs-type">hasVertex</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158129"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158129"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158129"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-221"></span><span id="hasVertex"><span class="annot"><span class="annottext">hasVertex :: forall a. Ord a =&gt; a -&gt; AdjacencyMap a -&gt; Bool
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#hasVertex"><span class="hs-identifier hs-var hs-var">hasVertex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; AdjacencyMap a -&gt; Bool) -&gt; a -&gt; AdjacencyMap a -&gt; Bool
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; AdjacencyMap a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; AdjacencyMap a -&gt; Bool
+</span><a href="Algebra.Graph.AdjacencyMap.html#hasVertex"><span class="hs-identifier hs-var">AM.hasVertex</span></a></span><span>
+</span><span id="line-222"></span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- | Check if a graph contains a given edge.</span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- Complexity: /O(log(n))/ time.</span><span>
+</span><span id="line-225"></span><span class="hs-comment">--</span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-227"></span><span class="hs-comment">-- hasEdge x y 'empty'            == False</span><span>
+</span><span id="line-228"></span><span class="hs-comment">-- hasEdge x y ('vertex' z)       == False</span><span>
+</span><span id="line-229"></span><span class="hs-comment">-- hasEdge 1 2 (shrink $ 1 * 2) == True</span><span>
+</span><span id="line-230"></span><span class="hs-comment">-- hasEdge x y . 'removeEdge' x y == 'const' False</span><span>
+</span><span id="line-231"></span><span class="hs-comment">-- hasEdge x y                  == 'elem' (x,y) . 'edgeList'</span><span>
+</span><span id="line-232"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-233"></span><span id="local-6989586621679158132"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#hasEdge"><span class="hs-identifier hs-type">hasEdge</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158132"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158132"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158132"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158132"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-234"></span><span id="hasEdge"><span class="annot"><span class="annottext">hasEdge :: forall a. Ord a =&gt; a -&gt; a -&gt; AdjacencyMap a -&gt; Bool
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#hasEdge"><span class="hs-identifier hs-var hs-var">hasEdge</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a -&gt; AdjacencyMap a -&gt; Bool)
+-&gt; a -&gt; a -&gt; AdjacencyMap a -&gt; Bool
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; AdjacencyMap a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; AdjacencyMap a -&gt; Bool
+</span><a href="Algebra.Graph.AdjacencyMap.html#hasEdge"><span class="hs-identifier hs-var">AM.hasEdge</span></a></span><span>
+</span><span id="line-235"></span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- | The number of vertices in a graph.</span><span>
+</span><span id="line-237"></span><span class="hs-comment">-- Complexity: /O(1)/ time.</span><span>
+</span><span id="line-238"></span><span class="hs-comment">--</span><span>
+</span><span id="line-239"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-240"></span><span class="hs-comment">-- vertexCount 'empty'             ==  0</span><span>
+</span><span id="line-241"></span><span class="hs-comment">-- vertexCount ('vertex' x)        ==  1</span><span>
+</span><span id="line-242"></span><span class="hs-comment">-- vertexCount                   ==  'length' . 'vertexList'</span><span>
+</span><span id="line-243"></span><span class="hs-comment">-- vertexCount x \&lt; vertexCount y ==&gt; x \&lt; y</span><span>
+</span><span id="line-244"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-245"></span><span id="local-6989586621679158135"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertexCount"><span class="hs-identifier hs-type">vertexCount</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158135"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-246"></span><span id="vertexCount"><span class="annot"><span class="annottext">vertexCount :: forall a. AdjacencyMap a -&gt; Int
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertexCount"><span class="hs-identifier hs-var hs-var">vertexCount</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; Int) -&gt; AdjacencyMap a -&gt; Int
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; Int
+forall a. AdjacencyMap a -&gt; Int
+</span><a href="Algebra.Graph.AdjacencyMap.html#vertexCount"><span class="hs-identifier hs-var">AM.vertexCount</span></a></span><span>
+</span><span id="line-247"></span><span>
+</span><span id="line-248"></span><span class="hs-comment">-- | The number of edges in a graph.</span><span>
+</span><span id="line-249"></span><span class="hs-comment">-- Complexity: /O(n)/ time.</span><span>
+</span><span id="line-250"></span><span class="hs-comment">--</span><span>
+</span><span id="line-251"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-252"></span><span class="hs-comment">-- edgeCount 'empty'            == 0</span><span>
+</span><span id="line-253"></span><span class="hs-comment">-- edgeCount ('vertex' x)       == 0</span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- edgeCount (shrink $ 1 * 2) == 1</span><span>
+</span><span id="line-255"></span><span class="hs-comment">-- edgeCount                  == 'length' . 'edgeList'</span><span>
+</span><span id="line-256"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-257"></span><span id="local-6989586621679158397"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#edgeCount"><span class="hs-identifier hs-type">edgeCount</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158397"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-258"></span><span id="edgeCount"><span class="annot"><span class="annottext">edgeCount :: forall a. AdjacencyMap a -&gt; Int
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#edgeCount"><span class="hs-identifier hs-var hs-var">edgeCount</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; Int) -&gt; AdjacencyMap a -&gt; Int
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; Int
+forall a. AdjacencyMap a -&gt; Int
+</span><a href="Algebra.Graph.AdjacencyMap.html#edgeCount"><span class="hs-identifier hs-var">AM.edgeCount</span></a></span><span>
+</span><span id="line-259"></span><span>
+</span><span id="line-260"></span><span class="hs-comment">-- | The sorted list of vertices of a given graph.</span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- Complexity: /O(n)/ time and memory.</span><span>
+</span><span id="line-262"></span><span class="hs-comment">--</span><span>
+</span><span id="line-263"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-264"></span><span class="hs-comment">-- vertexList 'empty'      == []</span><span>
+</span><span id="line-265"></span><span class="hs-comment">-- vertexList ('vertex' x) == [x]</span><span>
+</span><span id="line-266"></span><span class="hs-comment">-- vertexList . 'vertices' == 'Data.List.nub' . 'Data.List.sort'</span><span>
+</span><span id="line-267"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-268"></span><span id="local-6989586621679158099"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertexList"><span class="hs-identifier hs-type">vertexList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158099"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679158099"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-269"></span><span id="vertexList"><span class="annot"><span class="annottext">vertexList :: forall a. AdjacencyMap a -&gt; [a]
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertexList"><span class="hs-identifier hs-var hs-var">vertexList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; [a]) -&gt; AdjacencyMap a -&gt; [a]
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; [a]
+forall a. AdjacencyMap a -&gt; [a]
+</span><a href="Algebra.Graph.AdjacencyMap.html#vertexList"><span class="hs-identifier hs-var">AM.vertexList</span></a></span><span>
+</span><span id="line-270"></span><span>
+</span><span id="line-271"></span><span class="hs-comment">-- | The sorted list of edges of a graph.</span><span>
+</span><span id="line-272"></span><span class="hs-comment">-- Complexity: /O(n + m)/ time and /O(m)/ memory.</span><span>
+</span><span id="line-273"></span><span class="hs-comment">--</span><span>
+</span><span id="line-274"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-275"></span><span class="hs-comment">-- edgeList 'empty'            == []</span><span>
+</span><span id="line-276"></span><span class="hs-comment">-- edgeList ('vertex' x)       == []</span><span>
+</span><span id="line-277"></span><span class="hs-comment">-- edgeList (shrink $ 2 * 1) == [(2,1)]</span><span>
+</span><span id="line-278"></span><span class="hs-comment">-- edgeList . 'transpose'      == 'Data.List.sort' . 'map' 'Data.Tuple.swap' . edgeList</span><span>
+</span><span id="line-279"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-280"></span><span id="local-6989586621679158100"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#edgeList"><span class="hs-identifier hs-type">edgeList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158100"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158100"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679158100"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span></span><span>
+</span><span id="line-281"></span><span id="edgeList"><span class="annot"><span class="annottext">edgeList :: forall a. AdjacencyMap a -&gt; [(a, a)]
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#edgeList"><span class="hs-identifier hs-var hs-var">edgeList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; [(a, a)]) -&gt; AdjacencyMap a -&gt; [(a, a)]
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; [(a, a)]
+forall a. AdjacencyMap a -&gt; [(a, a)]
+</span><a href="Algebra.Graph.AdjacencyMap.html#edgeList"><span class="hs-identifier hs-var">AM.edgeList</span></a></span><span>
+</span><span id="line-282"></span><span>
+</span><span id="line-283"></span><span class="hs-comment">-- | The sorted /adjacency list/ of a graph.</span><span>
+</span><span id="line-284"></span><span class="hs-comment">-- Complexity: /O(n + m)/ time and memory.</span><span>
+</span><span id="line-285"></span><span class="hs-comment">--</span><span>
+</span><span id="line-286"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-287"></span><span class="hs-comment">-- adjacencyList 'empty'            == []</span><span>
+</span><span id="line-288"></span><span class="hs-comment">-- adjacencyList ('vertex' x)       == [(x, [])]</span><span>
+</span><span id="line-289"></span><span class="hs-comment">-- adjacencyList (shrink $ 1 * 2) == [(1, [2]), (2, [])]</span><span>
+</span><span id="line-290"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-291"></span><span id="local-6989586621679158143"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#adjacencyList"><span class="hs-identifier hs-type">adjacencyList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158143"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158143"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679158143"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">]</span></span><span>
+</span><span id="line-292"></span><span id="adjacencyList"><span class="annot"><span class="annottext">adjacencyList :: forall a. AdjacencyMap a -&gt; [(a, [a])]
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#adjacencyList"><span class="hs-identifier hs-var hs-var">adjacencyList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; [(a, [a])]) -&gt; AdjacencyMap a -&gt; [(a, [a])]
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; [(a, [a])]
+forall a. AdjacencyMap a -&gt; [(a, [a])]
+</span><a href="Algebra.Graph.AdjacencyMap.html#adjacencyList"><span class="hs-identifier hs-var">AM.adjacencyList</span></a></span><span>
+</span><span id="line-293"></span><span>
+</span><span id="line-294"></span><span class="hs-comment">-- | The set of vertices of a given graph.</span><span>
+</span><span id="line-295"></span><span class="hs-comment">-- Complexity: /O(n)/ time and memory.</span><span>
+</span><span id="line-296"></span><span class="hs-comment">--</span><span>
+</span><span id="line-297"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-298"></span><span class="hs-comment">-- vertexSet 'empty'      == Set.'Set.empty'</span><span>
+</span><span id="line-299"></span><span class="hs-comment">-- vertexSet . 'vertex'   == Set.'Set.singleton'</span><span>
+</span><span id="line-300"></span><span class="hs-comment">-- vertexSet . 'vertices' == Set.'Set.fromList'</span><span>
+</span><span id="line-301"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-302"></span><span id="local-6989586621679158146"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertexSet"><span class="hs-identifier hs-type">vertexSet</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158146"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679158146"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-303"></span><span id="vertexSet"><span class="annot"><span class="annottext">vertexSet :: forall a. AdjacencyMap a -&gt; Set a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#vertexSet"><span class="hs-identifier hs-var hs-var">vertexSet</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; Set a) -&gt; AdjacencyMap a -&gt; Set a
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; Set a
+forall a. AdjacencyMap a -&gt; Set a
+</span><a href="Algebra.Graph.AdjacencyMap.html#vertexSet"><span class="hs-identifier hs-var">AM.vertexSet</span></a></span><span>
+</span><span id="line-304"></span><span>
+</span><span id="line-305"></span><span class="hs-comment">-- | The set of edges of a given graph.</span><span>
+</span><span id="line-306"></span><span class="hs-comment">-- Complexity: /O((n + m) * log(m))/ time and /O(m)/ memory.</span><span>
+</span><span id="line-307"></span><span class="hs-comment">--</span><span>
+</span><span id="line-308"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-309"></span><span class="hs-comment">-- edgeSet 'empty'            == Set.'Set.empty'</span><span>
+</span><span id="line-310"></span><span class="hs-comment">-- edgeSet ('vertex' x)       == Set.'Set.empty'</span><span>
+</span><span id="line-311"></span><span class="hs-comment">-- edgeSet (shrink $ 1 * 2) == Set.'Set.singleton' (1,2)</span><span>
+</span><span id="line-312"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-313"></span><span id="local-6989586621679158150"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#edgeSet"><span class="hs-identifier hs-type">edgeSet</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679158150"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158150"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158150"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679158150"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-314"></span><span id="edgeSet"><span class="annot"><span class="annottext">edgeSet :: forall a. Eq a =&gt; AdjacencyMap a -&gt; Set (a, a)
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#edgeSet"><span class="hs-identifier hs-var hs-var">edgeSet</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; Set (a, a)) -&gt; AdjacencyMap a -&gt; Set (a, a)
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; Set (a, a)
+forall a. Eq a =&gt; AdjacencyMap a -&gt; Set (a, a)
+</span><a href="Algebra.Graph.AdjacencyMap.html#edgeSet"><span class="hs-identifier hs-var">AM.edgeSet</span></a></span><span>
+</span><span id="line-315"></span><span>
+</span><span id="line-316"></span><span class="hs-comment">-- | The /preset/ of an element @x@ is the set of its /direct predecessors/.</span><span>
+</span><span id="line-317"></span><span class="hs-comment">-- Complexity: /O(n * log(n))/ time and /O(n)/ memory.</span><span>
+</span><span id="line-318"></span><span class="hs-comment">--</span><span>
+</span><span id="line-319"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-320"></span><span class="hs-comment">-- preSet x 'empty'            == Set.'Set.empty'</span><span>
+</span><span id="line-321"></span><span class="hs-comment">-- preSet x ('vertex' x)       == Set.'Set.empty'</span><span>
+</span><span id="line-322"></span><span class="hs-comment">-- preSet 1 (shrink $ 1 * 2) == Set.'Set.empty'</span><span>
+</span><span id="line-323"></span><span class="hs-comment">-- preSet 2 (shrink $ 1 * 2) == Set.'Set.fromList' [1]</span><span>
+</span><span id="line-324"></span><span class="hs-comment">-- Set.'Set.member' x . preSet x   == 'const' False</span><span>
+</span><span id="line-325"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-326"></span><span id="local-6989586621679158153"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#preSet"><span class="hs-identifier hs-type">preSet</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158153"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158153"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158153"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679158153"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-327"></span><span id="preSet"><span class="annot"><span class="annottext">preSet :: forall a. Ord a =&gt; a -&gt; AdjacencyMap a -&gt; Set a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#preSet"><span class="hs-identifier hs-var hs-var">preSet</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; AdjacencyMap a -&gt; Set a) -&gt; a -&gt; AdjacencyMap a -&gt; Set a
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; AdjacencyMap a -&gt; Set a
+forall a. Ord a =&gt; a -&gt; AdjacencyMap a -&gt; Set a
+</span><a href="Algebra.Graph.AdjacencyMap.html#preSet"><span class="hs-identifier hs-var">AM.preSet</span></a></span><span>
+</span><span id="line-328"></span><span>
+</span><span id="line-329"></span><span class="hs-comment">-- | The /postset/ of a vertex is the set of its /direct successors/.</span><span>
+</span><span id="line-330"></span><span class="hs-comment">-- Complexity: /O(log(n))/ time and /O(1)/ memory.</span><span>
+</span><span id="line-331"></span><span class="hs-comment">--</span><span>
+</span><span id="line-332"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-333"></span><span class="hs-comment">-- postSet x 'empty'            == Set.'Set.empty'</span><span>
+</span><span id="line-334"></span><span class="hs-comment">-- postSet x ('vertex' x)       == Set.'Set.empty'</span><span>
+</span><span id="line-335"></span><span class="hs-comment">-- postSet 1 (shrink $ 1 * 2) == Set.'Set.fromList' [2]</span><span>
+</span><span id="line-336"></span><span class="hs-comment">-- postSet 2 (shrink $ 1 * 2) == Set.'Set.empty'</span><span>
+</span><span id="line-337"></span><span class="hs-comment">-- Set.'Set.member' x . postSet x   == 'const' False</span><span>
+</span><span id="line-338"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-339"></span><span id="local-6989586621679158418"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#postSet"><span class="hs-identifier hs-type">postSet</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158418"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158418"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158418"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679158418"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-340"></span><span id="postSet"><span class="annot"><span class="annottext">postSet :: forall a. Ord a =&gt; a -&gt; AdjacencyMap a -&gt; Set a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#postSet"><span class="hs-identifier hs-var hs-var">postSet</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; AdjacencyMap a -&gt; Set a) -&gt; a -&gt; AdjacencyMap a -&gt; Set a
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; AdjacencyMap a -&gt; Set a
+forall a. Ord a =&gt; a -&gt; AdjacencyMap a -&gt; Set a
+</span><a href="Algebra.Graph.AdjacencyMap.html#postSet"><span class="hs-identifier hs-var">AM.postSet</span></a></span><span>
+</span><span id="line-341"></span><span>
+</span><span id="line-342"></span><span class="hs-comment">-- | Remove a vertex from a given acyclic graph.</span><span>
+</span><span id="line-343"></span><span class="hs-comment">-- Complexity: /O(n*log(n))/ time.</span><span>
+</span><span id="line-344"></span><span class="hs-comment">--</span><span>
+</span><span id="line-345"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-346"></span><span class="hs-comment">-- removeVertex x ('vertex' x)       == 'empty'</span><span>
+</span><span id="line-347"></span><span class="hs-comment">-- removeVertex 1 ('vertex' 2)       == 'vertex' 2</span><span>
+</span><span id="line-348"></span><span class="hs-comment">-- removeVertex 1 (shrink $ 1 * 2) == 'vertex' 2</span><span>
+</span><span id="line-349"></span><span class="hs-comment">-- removeVertex x . removeVertex x == removeVertex x</span><span>
+</span><span id="line-350"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-351"></span><span id="local-6989586621679158157"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#removeVertex"><span class="hs-identifier hs-type">removeVertex</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158157"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158157"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158157"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158157"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-352"></span><span id="removeVertex"><span class="annot"><span class="annottext">removeVertex :: forall a. Ord a =&gt; a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#removeVertex"><span class="hs-identifier hs-var hs-var">removeVertex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; AdjacencyMap a -&gt; AdjacencyMap a)
+-&gt; a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+forall a. Ord a =&gt; a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.AdjacencyMap.html#removeVertex"><span class="hs-identifier hs-var">AM.removeVertex</span></a></span><span>
+</span><span id="line-353"></span><span>
+</span><span id="line-354"></span><span class="hs-comment">-- | Remove an edge from a given acyclic graph.</span><span>
+</span><span id="line-355"></span><span class="hs-comment">-- Complexity: /O(log(n))/ time.</span><span>
+</span><span id="line-356"></span><span class="hs-comment">--</span><span>
+</span><span id="line-357"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-358"></span><span class="hs-comment">-- removeEdge 1 2 (shrink $ 1 * 2)     == 'vertices' [1,2]</span><span>
+</span><span id="line-359"></span><span class="hs-comment">-- removeEdge x y . removeEdge x y     == removeEdge x y</span><span>
+</span><span id="line-360"></span><span class="hs-comment">-- removeEdge x y . 'removeVertex' x     == 'removeVertex' x</span><span>
+</span><span id="line-361"></span><span class="hs-comment">-- removeEdge 1 2 (shrink $ 1 * 2 * 3) == shrink ((1 + 2) * 3)</span><span>
+</span><span id="line-362"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-363"></span><span id="local-6989586621679158160"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#removeEdge"><span class="hs-identifier hs-type">removeEdge</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158160"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158160"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158160"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158160"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158160"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-364"></span><span id="removeEdge"><span class="annot"><span class="annottext">removeEdge :: forall a. Ord a =&gt; a -&gt; a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#removeEdge"><span class="hs-identifier hs-var hs-var">removeEdge</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a -&gt; AdjacencyMap a -&gt; AdjacencyMap a)
+-&gt; a -&gt; a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+forall a. Ord a =&gt; a -&gt; a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.AdjacencyMap.html#removeEdge"><span class="hs-identifier hs-var">AM.removeEdge</span></a></span><span>
+</span><span id="line-365"></span><span>
+</span><span id="line-366"></span><span class="hs-comment">-- | Transpose a given acyclic graph.</span><span>
+</span><span id="line-367"></span><span class="hs-comment">-- Complexity: /O(m * log(n))/ time, /O(n + m)/ memory.</span><span>
+</span><span id="line-368"></span><span class="hs-comment">--</span><span>
+</span><span id="line-369"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-370"></span><span class="hs-comment">-- transpose 'empty'       == 'empty'</span><span>
+</span><span id="line-371"></span><span class="hs-comment">-- transpose ('vertex' x)  == 'vertex' x</span><span>
+</span><span id="line-372"></span><span class="hs-comment">-- transpose . transpose == id</span><span>
+</span><span id="line-373"></span><span class="hs-comment">-- 'edgeList' . transpose  == 'Data.List.sort' . 'map' 'Data.Tuple.swap' . 'edgeList'</span><span>
+</span><span id="line-374"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-375"></span><span id="local-6989586621679158163"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#transpose"><span class="hs-identifier hs-type">transpose</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158163"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158163"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158163"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-376"></span><span id="transpose"><span class="annot"><span class="annottext">transpose :: forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#transpose"><span class="hs-identifier hs-var hs-var">transpose</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; AdjacencyMap a)
+-&gt; AdjacencyMap a -&gt; AdjacencyMap a
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; AdjacencyMap a
+forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.AdjacencyMap.html#transpose"><span class="hs-identifier hs-var">AM.transpose</span></a></span><span>
+</span><span id="line-377"></span><span>
+</span><span id="line-378"></span><span class="hs-comment">-- | Construct the /induced subgraph/ of a given graph by removing the</span><span>
+</span><span id="line-379"></span><span class="hs-comment">-- vertices that do not satisfy a given predicate.</span><span>
+</span><span id="line-380"></span><span class="hs-comment">-- Complexity: /O(n + m)/ time, assuming that the predicate takes constant time.</span><span>
+</span><span id="line-381"></span><span class="hs-comment">--</span><span>
+</span><span id="line-382"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-383"></span><span class="hs-comment">-- induce ('const' True ) x      == x</span><span>
+</span><span id="line-384"></span><span class="hs-comment">-- induce ('const' False) x      == 'empty'</span><span>
+</span><span id="line-385"></span><span class="hs-comment">-- induce (/= x)               == 'removeVertex' x</span><span>
+</span><span id="line-386"></span><span class="hs-comment">-- induce p . induce q         == induce (\x -&gt; p x &amp;&amp; q x)</span><span>
+</span><span id="line-387"></span><span class="hs-comment">-- 'isSubgraphOf' (induce p x) x == True</span><span>
+</span><span id="line-388"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-389"></span><span id="local-6989586621679158166"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#induce"><span class="hs-identifier hs-type">induce</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158166"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158166"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158166"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-390"></span><span id="induce"><span class="annot"><span class="annottext">induce :: forall a. (a -&gt; Bool) -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#induce"><span class="hs-identifier hs-var hs-var">induce</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; Bool) -&gt; AdjacencyMap a -&gt; AdjacencyMap a)
+-&gt; (a -&gt; Bool) -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Bool) -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+forall a. (a -&gt; Bool) -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.AdjacencyMap.html#induce"><span class="hs-identifier hs-var">AM.induce</span></a></span><span>
+</span><span id="line-391"></span><span>
+</span><span id="line-392"></span><span class="hs-comment">-- | Construct the /induced subgraph/ of a given graph by removing the vertices</span><span>
+</span><span id="line-393"></span><span class="hs-comment">-- that are 'Nothing'.</span><span>
+</span><span id="line-394"></span><span class="hs-comment">-- Complexity: /O(n + m)/ time.</span><span>
+</span><span id="line-395"></span><span class="hs-comment">--</span><span>
+</span><span id="line-396"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-397"></span><span class="hs-comment">-- induceJust ('vertex' 'Nothing') == 'empty'</span><span>
+</span><span id="line-398"></span><span class="hs-comment">-- induceJust . 'vertex' . 'Just'  == 'vertex'</span><span>
+</span><span id="line-399"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-400"></span><span id="local-6989586621679158169"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#induceJust"><span class="hs-identifier hs-type">induceJust</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158169"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679158169"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158169"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-401"></span><span id="induceJust"><span class="annot"><span class="annottext">induceJust :: forall a. Ord a =&gt; AdjacencyMap (Maybe a) -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#induceJust"><span class="hs-identifier hs-var hs-var">induceJust</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap (Maybe a) -&gt; AdjacencyMap a)
+-&gt; AdjacencyMap (Maybe a) -&gt; AdjacencyMap a
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap (Maybe a) -&gt; AdjacencyMap a
+forall a. Ord a =&gt; AdjacencyMap (Maybe a) -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.AdjacencyMap.html#induceJust"><span class="hs-identifier hs-var">AM.induceJust</span></a></span><span>
+</span><span id="line-402"></span><span>
+</span><span id="line-403"></span><span class="hs-comment">-- | Compute the /Cartesian product/ of graphs.</span><span>
+</span><span id="line-404"></span><span class="hs-comment">-- Complexity: /O((n + m) * log(n))/ time and O(n + m) memory.</span><span>
+</span><span id="line-405"></span><span class="hs-comment">--</span><span>
+</span><span id="line-406"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-407"></span><span class="hs-comment">-- 'edgeList' (box ('shrink' $ 1 * 2) ('shrink' $ 10 * 20)) == [ ((1,10), (1,20))</span><span>
+</span><span id="line-408"></span><span class="hs-comment">--                                                       , ((1,10), (2,10))</span><span>
+</span><span id="line-409"></span><span class="hs-comment">--                                                       , ((1,20), (2,20))</span><span>
+</span><span id="line-410"></span><span class="hs-comment">--                                                       , ((2,10), (2,20)) ]</span><span>
+</span><span id="line-411"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-412"></span><span class="hs-comment">--</span><span>
+</span><span id="line-413"></span><span class="hs-comment">-- Up to isomorphism between the resulting vertex types, this operation is</span><span>
+</span><span id="line-414"></span><span class="hs-comment">-- /commutative/ and /associative/, has singleton graphs as /identities/ and</span><span>
+</span><span id="line-415"></span><span class="hs-comment">-- 'empty' as the /annihilating zero/. Below @~~@ stands for equality up to</span><span>
+</span><span id="line-416"></span><span class="hs-comment">-- an isomorphism, e.g. @(x,@ @()) ~~ x@.</span><span>
+</span><span id="line-417"></span><span class="hs-comment">--</span><span>
+</span><span id="line-418"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-419"></span><span class="hs-comment">-- box x y               ~~ box y x</span><span>
+</span><span id="line-420"></span><span class="hs-comment">-- box x (box y z)       ~~ box (box x y) z</span><span>
+</span><span id="line-421"></span><span class="hs-comment">-- box x ('vertex' ())     ~~ x</span><span>
+</span><span id="line-422"></span><span class="hs-comment">-- box x 'empty'           ~~ 'empty'</span><span>
+</span><span id="line-423"></span><span class="hs-comment">-- 'transpose'   (box x y) == box ('transpose' x) ('transpose' y)</span><span>
+</span><span id="line-424"></span><span class="hs-comment">-- 'vertexCount' (box x y) == 'vertexCount' x * 'vertexCount' y</span><span>
+</span><span id="line-425"></span><span class="hs-comment">-- 'edgeCount'   (box x y) &lt;= 'vertexCount' x * 'edgeCount' y + 'edgeCount' x * 'vertexCount' y</span><span>
+</span><span id="line-426"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-427"></span><span id="local-6989586621679158172"><span id="local-6989586621679158173"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#box"><span class="hs-identifier hs-type">box</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158172"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158173"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158172"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158173"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158172"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679158173"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-428"></span><span id="box"><span class="annot"><span class="annottext">box :: forall a b.
+(Ord a, Ord b) =&gt;
+AdjacencyMap a -&gt; AdjacencyMap b -&gt; AdjacencyMap (a, b)
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#box"><span class="hs-identifier hs-var hs-var">box</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; AdjacencyMap b -&gt; AdjacencyMap (a, b))
+-&gt; AdjacencyMap a -&gt; AdjacencyMap b -&gt; AdjacencyMap (a, b)
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; AdjacencyMap b -&gt; AdjacencyMap (a, b)
+forall a b.
+(Ord a, Ord b) =&gt;
+AdjacencyMap a -&gt; AdjacencyMap b -&gt; AdjacencyMap (a, b)
+</span><a href="Algebra.Graph.AdjacencyMap.html#box"><span class="hs-identifier hs-var">AM.box</span></a></span><span>
+</span><span id="line-429"></span><span>
+</span><span id="line-430"></span><span class="hs-comment">-- | Compute the /transitive closure/ of a graph.</span><span>
+</span><span id="line-431"></span><span class="hs-comment">-- Complexity: /O(n * m * log(n)^2)/ time.</span><span>
+</span><span id="line-432"></span><span class="hs-comment">--</span><span>
+</span><span id="line-433"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-434"></span><span class="hs-comment">-- transitiveClosure 'empty'                    == 'empty'</span><span>
+</span><span id="line-435"></span><span class="hs-comment">-- transitiveClosure ('vertex' x)               == 'vertex' x</span><span>
+</span><span id="line-436"></span><span class="hs-comment">-- transitiveClosure (shrink $ 1 * 2 + 2 * 3) == shrink (1 * 2 + 1 * 3 + 2 * 3)</span><span>
+</span><span id="line-437"></span><span class="hs-comment">-- transitiveClosure . transitiveClosure      == transitiveClosure</span><span>
+</span><span id="line-438"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-439"></span><span id="local-6989586621679158447"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#transitiveClosure"><span class="hs-identifier hs-type">transitiveClosure</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158447"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158447"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158447"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-440"></span><span id="transitiveClosure"><span class="annot"><span class="annottext">transitiveClosure :: forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#transitiveClosure"><span class="hs-identifier hs-var hs-var">transitiveClosure</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; AdjacencyMap a)
+-&gt; AdjacencyMap a -&gt; AdjacencyMap a
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; AdjacencyMap a
+forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.AdjacencyMap.html#transitiveClosure"><span class="hs-identifier hs-var">AM.transitiveClosure</span></a></span><span>
+</span><span id="line-441"></span><span>
+</span><span id="line-442"></span><span class="hs-comment">-- | Compute a /topological sort/ of an acyclic graph.</span><span>
+</span><span id="line-443"></span><span class="hs-comment">--</span><span>
+</span><span id="line-444"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-445"></span><span class="hs-comment">-- topSort 'empty'                          == []</span><span>
+</span><span id="line-446"></span><span class="hs-comment">-- topSort ('vertex' x)                     == [x]</span><span>
+</span><span id="line-447"></span><span class="hs-comment">-- topSort (shrink $ 1 * (2 + 4) + 3 * 4) == [1, 2, 3, 4]</span><span>
+</span><span id="line-448"></span><span class="hs-comment">-- topSort ('join' x y)                     == 'fmap' 'Left' (topSort x) ++ 'fmap' 'Right' (topSort y)</span><span>
+</span><span id="line-449"></span><span class="hs-comment">-- 'Right' . topSort                        == 'AM.topSort' . 'fromAcyclic'</span><span>
+</span><span id="line-450"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-451"></span><span id="local-6989586621679158179"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#topSort"><span class="hs-identifier hs-type">topSort</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158179"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158179"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679158179"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-452"></span><span id="topSort"><span class="annot"><span class="annottext">topSort :: forall a. Ord a =&gt; AdjacencyMap a -&gt; [a]
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#topSort"><span class="hs-identifier hs-var hs-var">topSort</span></a></span></span><span> </span><span id="local-6989586621679158458"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158458"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; Either (Cycle a) [a]
+forall a. Ord a =&gt; AdjacencyMap a -&gt; Either (Cycle a) [a]
+</span><a href="Algebra.Graph.AdjacencyMap.Algorithm.html#topSort"><span class="hs-identifier hs-var">AM.topSort</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; AdjacencyMap a
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158458"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-453"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679158459"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679158459"><span class="hs-identifier hs-var">vs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679158459"><span class="hs-identifier hs-var">vs</span></a></span><span>
+</span><span id="line-454"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">Cycle a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; [a]
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Internal error: the acyclicity invariant is violated in topSort&quot;</span></span><span>
+</span><span id="line-455"></span><span>
+</span><span id="line-456"></span><span class="hs-comment">-- | Compute the acyclic /condensation/ of a graph, where each vertex</span><span>
+</span><span id="line-457"></span><span class="hs-comment">-- corresponds to a /strongly-connected component/ of the original graph. Note</span><span>
+</span><span id="line-458"></span><span class="hs-comment">-- that component graphs are non-empty, and are therefore of type</span><span>
+</span><span id="line-459"></span><span class="hs-comment">-- &quot;Algebra.Graph.NonEmpty.AdjacencyMap&quot;.</span><span>
+</span><span id="line-460"></span><span class="hs-comment">--</span><span>
+</span><span id="line-461"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-462"></span><span class="hs-comment">--            scc 'AM.empty'               == 'empty'</span><span>
+</span><span id="line-463"></span><span class="hs-comment">--            scc ('AM.vertex' x)          == 'vertex' (NonEmpty.'NonEmpty.vertex' x)</span><span>
+</span><span id="line-464"></span><span class="hs-comment">--            scc ('AM.edge' 1 1)          == 'vertex' (NonEmpty.'NonEmpty.edge' 1 1)</span><span>
+</span><span id="line-465"></span><span class="hs-comment">-- 'edgeList' $ scc ('AM.edge' 1 2)          == [ (NonEmpty.'NonEmpty.vertex' 1       , NonEmpty.'NonEmpty.vertex' 2       ) ]</span><span>
+</span><span id="line-466"></span><span class="hs-comment">-- 'edgeList' $ scc (3 * 1 * 4 * 1 * 5) == [ (NonEmpty.'NonEmpty.vertex' 3       , NonEmpty.'NonEmpty.vertex' 5       )</span><span>
+</span><span id="line-467"></span><span class="hs-comment">--                                       , (NonEmpty.'NonEmpty.vertex' 3       , NonEmpty.'NonEmpty.clique1' [1,4,1])</span><span>
+</span><span id="line-468"></span><span class="hs-comment">--                                       , (NonEmpty.'NonEmpty.clique1' [1,4,1], NonEmpty.'NonEmpty.vertex' 5       ) ]</span><span>
+</span><span id="line-469"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-470"></span><span id="local-6989586621679158186"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#scc"><span class="hs-identifier hs-type">scc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158186"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AM.AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158186"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.NonEmpty.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">NAM.AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158186"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-471"></span><span id="scc"><span class="annot"><span class="annottext">scc :: forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap (AdjacencyMap a)
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#scc"><span class="hs-identifier hs-var hs-var">scc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; AdjacencyMap (AdjacencyMap a))
+-&gt; AdjacencyMap a -&gt; AdjacencyMap (AdjacencyMap a)
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; AdjacencyMap (AdjacencyMap a)
+forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap (AdjacencyMap a)
+</span><a href="Algebra.Graph.AdjacencyMap.Algorithm.html#scc"><span class="hs-identifier hs-var">AM.scc</span></a></span><span>
+</span><span id="line-472"></span><span>
+</span><span id="line-473"></span><span class="hs-comment">-- | Construct an acyclic graph from a given adjacency map, or return 'Nothing'</span><span>
+</span><span id="line-474"></span><span class="hs-comment">-- if the input contains cycles.</span><span>
+</span><span id="line-475"></span><span class="hs-comment">--</span><span>
+</span><span id="line-476"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-477"></span><span class="hs-comment">-- toAcyclic ('AM.path'    [1,2,3]) == 'Just' (shrink $ 1 * 2 + 2 * 3)</span><span>
+</span><span id="line-478"></span><span class="hs-comment">-- toAcyclic ('AM.clique'  [3,2,1]) == 'Just' ('transpose' (shrink $ 1 * 2 * 3))</span><span>
+</span><span id="line-479"></span><span class="hs-comment">-- toAcyclic ('AM.circuit' [1,2,3]) == 'Nothing'</span><span>
+</span><span id="line-480"></span><span class="hs-comment">-- toAcyclic . 'fromAcyclic'     == 'Just'</span><span>
+</span><span id="line-481"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-482"></span><span id="local-6989586621679158190"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#toAcyclic"><span class="hs-identifier hs-type">toAcyclic</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158190"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AM.AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158190"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158190"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-483"></span><span id="toAcyclic"><span class="annot"><span class="annottext">toAcyclic :: forall a. Ord a =&gt; AdjacencyMap a -&gt; Maybe (AdjacencyMap a)
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#toAcyclic"><span class="hs-identifier hs-var hs-var">toAcyclic</span></a></span></span><span> </span><span id="local-6989586621679158471"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158471"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; Bool
+forall a. Ord a =&gt; AdjacencyMap a -&gt; Bool
+</span><a href="Algebra.Graph.AdjacencyMap.Algorithm.html#isAcyclic"><span class="hs-identifier hs-var">AM.isAcyclic</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158471"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; Maybe (AdjacencyMap a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; AdjacencyMap a
+forall a. AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AAM"><span class="hs-identifier hs-var">AAM</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158471"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Maybe (AdjacencyMap a)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-484"></span><span>
+</span><span id="line-485"></span><span class="hs-comment">-- | Construct an acyclic graph from a given adjacency map, keeping only edges</span><span>
+</span><span id="line-486"></span><span class="hs-comment">-- @(x,y)@ where @x &lt; y@ according to the supplied 'Ord' @a@ instance.</span><span>
+</span><span id="line-487"></span><span class="hs-comment">--</span><span>
+</span><span id="line-488"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-489"></span><span class="hs-comment">-- toAcyclicOrd 'empty'       == 'empty'</span><span>
+</span><span id="line-490"></span><span class="hs-comment">-- toAcyclicOrd . 'vertex'    == 'vertex'</span><span>
+</span><span id="line-491"></span><span class="hs-comment">-- toAcyclicOrd (1 + 2)     == shrink (1 + 2)</span><span>
+</span><span id="line-492"></span><span class="hs-comment">-- toAcyclicOrd (1 * 2)     == shrink (1 * 2)</span><span>
+</span><span id="line-493"></span><span class="hs-comment">-- toAcyclicOrd (2 * 1)     == shrink (1 + 2)</span><span>
+</span><span id="line-494"></span><span class="hs-comment">-- toAcyclicOrd (1 * 2 * 1) == shrink (1 * 2)</span><span>
+</span><span id="line-495"></span><span class="hs-comment">-- toAcyclicOrd (1 * 2 * 3) == shrink (1 * 2 * 3)</span><span>
+</span><span id="line-496"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-497"></span><span id="local-6989586621679158193"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#toAcyclicOrd"><span class="hs-identifier hs-type">toAcyclicOrd</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158193"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AM.AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158193"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158193"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-498"></span><span id="toAcyclicOrd"><span class="annot"><span class="annottext">toAcyclicOrd :: forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#toAcyclicOrd"><span class="hs-identifier hs-var hs-var">toAcyclicOrd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; AdjacencyMap a
+forall a. AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AAM"><span class="hs-identifier hs-var">AAM</span></a></span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; AdjacencyMap a)
+-&gt; (AdjacencyMap a -&gt; AdjacencyMap a)
+-&gt; AdjacencyMap a
+-&gt; AdjacencyMap a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; a -&gt; Bool) -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+forall a.
+Ord a =&gt;
+(a -&gt; a -&gt; Bool) -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#filterEdges"><span class="hs-identifier hs-var">filterEdges</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(&lt;)</span></span><span>
+</span><span id="line-499"></span><span>
+</span><span id="line-500"></span><span class="hs-comment">-- TODO: Add time complexity</span><span>
+</span><span id="line-501"></span><span class="hs-comment">-- TODO: Change Arbitrary instance of Acyclic and Labelled Acyclic graph</span><span>
+</span><span id="line-502"></span><span class="hs-comment">-- | Construct an acyclic graph from a given adjacency map using 'scc'.</span><span>
+</span><span id="line-503"></span><span class="hs-comment">-- If the graph is acyclic, it is returned as is. If the graph is cyclic, then a</span><span>
+</span><span id="line-504"></span><span class="hs-comment">-- representative for every strongly connected component in its condensation</span><span>
+</span><span id="line-505"></span><span class="hs-comment">-- graph is chosen and these representatives are used to build an acyclic graph.</span><span>
+</span><span id="line-506"></span><span class="hs-comment">--</span><span>
+</span><span id="line-507"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-508"></span><span class="hs-comment">-- shrink . 'AM.vertex'      == 'vertex'</span><span>
+</span><span id="line-509"></span><span class="hs-comment">-- shrink . 'AM.vertices'    == 'vertices'</span><span>
+</span><span id="line-510"></span><span class="hs-comment">-- shrink . 'fromAcyclic' == 'id'</span><span>
+</span><span id="line-511"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-512"></span><span id="local-6989586621679158477"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#shrink"><span class="hs-identifier hs-type">shrink</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158477"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AM.AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158477"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158477"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-513"></span><span id="shrink"><span class="annot"><span class="annottext">shrink :: forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#shrink"><span class="hs-identifier hs-var hs-var">shrink</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; AdjacencyMap a
+forall a. AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AAM"><span class="hs-identifier hs-var">AAM</span></a></span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; AdjacencyMap a)
+-&gt; (AdjacencyMap a -&gt; AdjacencyMap a)
+-&gt; AdjacencyMap a
+-&gt; AdjacencyMap a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; a)
+-&gt; AdjacencyMap (AdjacencyMap a) -&gt; AdjacencyMap a
+forall a b.
+(Ord a, Ord b) =&gt;
+(a -&gt; b) -&gt; AdjacencyMap a -&gt; AdjacencyMap b
+</span><a href="Algebra.Graph.AdjacencyMap.html#gmap"><span class="hs-identifier hs-var">AM.gmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NonEmpty a -&gt; a
+forall a. NonEmpty a -&gt; a
+</span><span class="hs-identifier hs-var">NonEmpty.head</span></span><span> </span><span class="annot"><span class="annottext">(NonEmpty a -&gt; a)
+-&gt; (AdjacencyMap a -&gt; NonEmpty a) -&gt; AdjacencyMap a -&gt; a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; NonEmpty a
+forall a. AdjacencyMap a -&gt; NonEmpty a
+</span><a href="Algebra.Graph.NonEmpty.AdjacencyMap.html#vertexList1"><span class="hs-identifier hs-var">NAM.vertexList1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap (AdjacencyMap a) -&gt; AdjacencyMap a)
+-&gt; (AdjacencyMap a -&gt; AdjacencyMap (AdjacencyMap a))
+-&gt; AdjacencyMap a
+-&gt; AdjacencyMap a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; AdjacencyMap (AdjacencyMap a)
+forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap (AdjacencyMap a)
+</span><a href="Algebra.Graph.AdjacencyMap.Algorithm.html#scc"><span class="hs-identifier hs-var">AM.scc</span></a></span><span>
+</span><span id="line-514"></span><span>
+</span><span id="line-515"></span><span class="hs-comment">-- TODO: Provide a faster equivalent in &quot;Algebra.Graph.AdjacencyMap&quot;.</span><span>
+</span><span id="line-516"></span><span class="hs-comment">-- Keep only the edges that satisfy a given predicate.</span><span>
+</span><span id="line-517"></span><span id="local-6989586621679158195"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#filterEdges"><span class="hs-identifier hs-type">filterEdges</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158195"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158195"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158195"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AM.AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158195"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AM.AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158195"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-518"></span><span id="filterEdges"><span class="annot"><span class="annottext">filterEdges :: forall a.
+Ord a =&gt;
+(a -&gt; a -&gt; Bool) -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#filterEdges"><span class="hs-identifier hs-var hs-var">filterEdges</span></a></span></span><span> </span><span id="local-6989586621679158487"><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+</span><a href="#local-6989586621679158487"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679158488"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158488"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(a, Set a)] -&gt; AdjacencyMap a
+forall a. Ord a =&gt; [(a, Set a)] -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.AdjacencyMap.html#fromAdjacencySets"><span class="hs-identifier hs-var">AM.fromAdjacencySets</span></a></span><span>
+</span><span id="line-519"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679158490"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Bool) -&gt; Set a -&gt; Set a
+forall a. (a -&gt; Bool) -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+</span><a href="#local-6989586621679158487"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679158490"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679158492"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679158490"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679158490"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679158492"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679158492"><span class="hs-identifier hs-var">bs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Map a (Set a) -&gt; [(a, Set a)]
+forall k a. Map k a -&gt; [(k, a)]
+</span><span class="hs-identifier hs-var">Map.toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; Map a (Set a)
+forall a. AdjacencyMap a -&gt; Map a (Set a)
+</span><a href="Algebra.Graph.AdjacencyMap.html#adjacencyMap"><span class="hs-identifier hs-var">AM.adjacencyMap</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158488"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-520"></span><span>
+</span><span id="line-521"></span><span class="hs-comment">-- | Check if the internal representation of an acyclic graph is consistent,</span><span>
+</span><span id="line-522"></span><span class="hs-comment">-- i.e. that all edges refer to existing vertices and the graph is acyclic. It</span><span>
+</span><span id="line-523"></span><span class="hs-comment">-- should be impossible to create an inconsistent 'AdjacencyMap'.</span><span>
+</span><span id="line-524"></span><span class="hs-comment">--</span><span>
+</span><span id="line-525"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-526"></span><span class="hs-comment">-- consistent 'empty'                 == True</span><span>
+</span><span id="line-527"></span><span class="hs-comment">-- consistent ('vertex' x)            == True</span><span>
+</span><span id="line-528"></span><span class="hs-comment">-- consistent ('vertices' xs)         == True</span><span>
+</span><span id="line-529"></span><span class="hs-comment">-- consistent ('union' x y)           == True</span><span>
+</span><span id="line-530"></span><span class="hs-comment">-- consistent ('join' x y)            == True</span><span>
+</span><span id="line-531"></span><span class="hs-comment">-- consistent ('transpose' x)         == True</span><span>
+</span><span id="line-532"></span><span class="hs-comment">-- consistent ('box' x y)             == True</span><span>
+</span><span id="line-533"></span><span class="hs-comment">-- consistent ('transitiveClosure' x) == True</span><span>
+</span><span id="line-534"></span><span class="hs-comment">-- consistent ('scc' x)               == True</span><span>
+</span><span id="line-535"></span><span class="hs-comment">-- 'fmap' consistent ('toAcyclic' x)    /= False</span><span>
+</span><span id="line-536"></span><span class="hs-comment">-- consistent ('toAcyclicOrd' x)      == True</span><span>
+</span><span id="line-537"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-538"></span><span id="local-6989586621679158207"><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#consistent"><span class="hs-identifier hs-type">consistent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679158207"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158207"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-539"></span><span id="consistent"><span class="annot"><span class="annottext">consistent :: forall a. Ord a =&gt; AdjacencyMap a -&gt; Bool
+</span><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#consistent"><span class="hs-identifier hs-var hs-var">consistent</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Acyclic.AdjacencyMap.html#AAM"><span class="hs-identifier hs-type">AAM</span></a></span><span> </span><span id="local-6989586621679158498"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158498"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; Bool
+forall a. Ord a =&gt; AdjacencyMap a -&gt; Bool
+</span><a href="Algebra.Graph.AdjacencyMap.html#consistent"><span class="hs-identifier hs-var">AM.consistent</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158498"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; Bool
+forall a. Ord a =&gt; AdjacencyMap a -&gt; Bool
+</span><a href="Algebra.Graph.AdjacencyMap.Algorithm.html#isAcyclic"><span class="hs-identifier hs-var">AM.isAcyclic</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679158498"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-540"></span></pre></body></html>

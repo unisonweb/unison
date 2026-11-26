@@ -1,0 +1,15 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Weak.Finalize.html"><span class="hs-identifier">GHC.Weak.Finalize</span></a></span><span>
+</span><span id="line-2"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Handling exceptions</span></span><span>
+</span><span id="line-3"></span><span>      </span><span class="hs-comment">-- | When an exception is thrown by a finalizer called by the</span><span>
+</span><span id="line-4"></span><span>      </span><span class="hs-comment">-- garbage collector, GHC calls a global handler which can be set with</span><span>
+</span><span id="line-5"></span><span>      </span><span class="hs-comment">-- 'setFinalizerExceptionHandler'. Note that any exceptions thrown by</span><span>
+</span><span id="line-6"></span><span>      </span><span class="hs-comment">-- this handler will be ignored.</span><span>
+</span><span id="line-7"></span><span>      </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Weak.Finalize.html#setFinalizerExceptionHandler"><span class="hs-identifier">setFinalizerExceptionHandler</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Weak.Finalize.html#getFinalizerExceptionHandler"><span class="hs-identifier">getFinalizerExceptionHandler</span></a></span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Weak.Finalize.html#printToHandleFinalizerExceptionHandler"><span class="hs-identifier">printToHandleFinalizerExceptionHandler</span></a></span><span>
+</span><span id="line-10"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Internal</span></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Weak.Finalize.html#runFinalizerBatch"><span class="hs-identifier">runFinalizerBatch</span></a></span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Weak.Finalize.html"><span class="hs-identifier">GHC.Internal.Weak.Finalize</span></a></span><span>
+</span><span id="line-15"></span></pre></body></html>

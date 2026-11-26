@@ -1,0 +1,483 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE FunctionalDependencies #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE GADTs #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskell #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# OPTIONS_GHC -fno-warn-orphans #-}</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Module:      Data.OpenApi.Lens</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Maintainer:  Nickolay Kudasov &lt;nickolay@getshoptv.com&gt;</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Stability:   experimental</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Lenses and prisms for Swagger.</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html"><span class="hs-identifier">Data.OpenApi.Lens</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Value</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Scientific</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Scientific</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html"><span class="hs-identifier">Data.OpenApi.Internal</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.Utils.html"><span class="hs-identifier">Data.OpenApi.Internal.Utils</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="annot"><span class="hs-comment">-- * Classy lenses</span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span id="HasSecurity"><span id="HasServers"><span id="HasExternalDocs"><span id="HasPaths"><span id="HasTags"><span id="HasOpenapi"><span id="HasComponents"><span id="HasInfo"><span id="local-6989586621679997627"><span id="local-6989586621679997628"><span id="local-6989586621679997629"><span id="local-6989586621679997630"><span id="local-6989586621679997631"><span id="local-6989586621679997632"><span id="local-6989586621679997633"><span id="local-6989586621679997634"><span id="local-6989586621679997635"><span id="local-6989586621679997636"><span id="local-6989586621679997637"><span id="local-6989586621679997638"><span id="local-6989586621679997639"><span id="local-6989586621679997640"><span id="local-6989586621679997641"><span id="local-6989586621679997642"><span id="local-6989586621679998228"><span id="local-6989586621679998232"><span id="local-6989586621679998236"><span id="local-6989586621679998240"><span id="local-6989586621679998244"><span id="local-6989586621679998248"><span id="local-6989586621679998252"><span id="local-6989586621679998256"><span id="tags"><span id="servers"><span id="security"><span id="paths"><span id="openapi"><span id="info"><span id="externalDocs"><span id="components"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">OpenApi</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-30"></span><span id="HasHeaders"><span id="HasCallbacks"><span id="HasResponses"><span id="HasSchemas"><span id="HasLinks"><span id="HasExamples"><span id="HasParameters"><span id="HasRequestBodies"><span id="HasSecuritySchemes"><span id="local-6989586621679997673"><span id="local-6989586621679997674"><span id="local-6989586621679997675"><span id="local-6989586621679997676"><span id="local-6989586621679997677"><span id="local-6989586621679997678"><span id="local-6989586621679997679"><span id="local-6989586621679997680"><span id="local-6989586621679997681"><span id="local-6989586621679997682"><span id="local-6989586621679997683"><span id="local-6989586621679997684"><span id="local-6989586621679997685"><span id="local-6989586621679997686"><span id="local-6989586621679997687"><span id="local-6989586621679997688"><span id="local-6989586621679997689"><span id="local-6989586621679997690"><span id="local-6989586621679998365"><span id="local-6989586621679998369"><span id="local-6989586621679998373"><span id="local-6989586621679998377"><span id="local-6989586621679998381"><span id="local-6989586621679998385"><span id="local-6989586621679998389"><span id="local-6989586621679998393"><span id="local-6989586621679998397"><span id="securitySchemes"><span id="schemas"><span id="responses"><span id="requestBodies"><span id="parameters"><span id="links"><span id="headers"><span id="examples"><span id="callbacks"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Components</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-31"></span><span id="HasDescription"><span id="HasUrl"><span id="HasVariables"><span id="local-6989586621679997705"><span id="local-6989586621679997706"><span id="local-6989586621679997707"><span id="local-6989586621679997708"><span id="local-6989586621679997709"><span id="local-6989586621679997710"><span id="local-6989586621679998528"><span id="local-6989586621679998532"><span id="local-6989586621679998536"><span id="variables"><span id="url"><span id="description"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Server</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-32"></span><span id="HasRequired"><span id="HasContent"><span id="local-6989586621679997718"><span id="local-6989586621679997719"><span id="local-6989586621679997720"><span id="local-6989586621679997721"><span id="local-6989586621679998565"><span id="local-6989586621679998569"><span id="local-6989586621679998573"><span id="required"><span id="content"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">RequestBody</span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-33"></span><span id="HasExample"><span id="HasSchema"><span id="HasEncoding"><span id="local-6989586621679997731"><span id="local-6989586621679997732"><span id="local-6989586621679997733"><span id="local-6989586621679997734"><span id="local-6989586621679997735"><span id="local-6989586621679997736"><span id="local-6989586621679998600"><span id="local-6989586621679998604"><span id="local-6989586621679998608"><span id="local-6989586621679998612"><span id="schema"><span id="example"><span id="encoding"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">MediaTypeObject</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-34"></span><span id="HasTermsOfService"><span id="HasLicense"><span id="HasContact"><span id="HasVersion"><span id="HasTitle"><span id="local-6989586621679997748"><span id="local-6989586621679997749"><span id="local-6989586621679997750"><span id="local-6989586621679997751"><span id="local-6989586621679997752"><span id="local-6989586621679997753"><span id="local-6989586621679997754"><span id="local-6989586621679997755"><span id="local-6989586621679997756"><span id="local-6989586621679997757"><span id="local-6989586621679998651"><span id="local-6989586621679998655"><span id="local-6989586621679998659"><span id="local-6989586621679998663"><span id="local-6989586621679998667"><span id="local-6989586621679998671"><span id="version"><span id="title"><span id="termsOfService"><span id="license"><span id="contact"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Info</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-35"></span><span id="HasName"><span id="HasEmail"><span id="local-6989586621679997767"><span id="local-6989586621679997768"><span id="local-6989586621679997769"><span id="local-6989586621679997770"><span id="local-6989586621679998740"><span id="local-6989586621679998744"><span id="local-6989586621679998748"><span id="name"><span id="email"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Contact</span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-36"></span><span id="local-6989586621679998775"><span id="local-6989586621679998779"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">License</span></span></span><span>
+</span><span id="line-37"></span><span id="HasSummary"><span id="HasTrace"><span id="HasPut"><span id="HasPost"><span id="HasPatch"><span id="HasOptions"><span id="HasHead"><span id="HasGet"><span id="HasDelete"><span id="local-6989586621679997786"><span id="local-6989586621679997787"><span id="local-6989586621679997788"><span id="local-6989586621679997789"><span id="local-6989586621679997790"><span id="local-6989586621679997791"><span id="local-6989586621679997792"><span id="local-6989586621679997793"><span id="local-6989586621679997794"><span id="local-6989586621679997795"><span id="local-6989586621679997796"><span id="local-6989586621679997797"><span id="local-6989586621679997798"><span id="local-6989586621679997799"><span id="local-6989586621679997800"><span id="local-6989586621679997801"><span id="local-6989586621679997802"><span id="local-6989586621679997803"><span id="local-6989586621679998794"><span id="local-6989586621679998798"><span id="local-6989586621679998802"><span id="local-6989586621679998806"><span id="local-6989586621679998810"><span id="local-6989586621679998814"><span id="local-6989586621679998818"><span id="local-6989586621679998822"><span id="local-6989586621679998826"><span id="local-6989586621679998830"><span id="local-6989586621679998834"><span id="local-6989586621679998838"><span id="trace"><span id="summary"><span id="put"><span id="post"><span id="patch"><span id="options"><span id="head_"><span id="get"><span id="delete"><span class="hs-identifier">makeLensesWith</span><span> </span><span class="hs-identifier">swaggerFieldRules</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">PathItem</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-38"></span><span id="local-6989586621679999041"><span id="local-6989586621679999045"><span id="local-6989586621679999049"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Tag</span></span></span></span><span>
+</span><span id="line-39"></span><span id="HasDeprecated"><span id="HasOperationId"><span id="HasRequestBody"><span id="local-6989586621679997823"><span id="local-6989586621679997824"><span id="local-6989586621679997825"><span id="local-6989586621679997826"><span id="local-6989586621679997827"><span id="local-6989586621679997828"><span id="local-6989586621679999073"><span id="local-6989586621679999077"><span id="local-6989586621679999081"><span id="local-6989586621679999085"><span id="local-6989586621679999089"><span id="local-6989586621679999093"><span id="local-6989586621679999097"><span id="local-6989586621679999101"><span id="local-6989586621679999105"><span id="local-6989586621679999109"><span id="local-6989586621679999113"><span id="local-6989586621679999117"><span id="requestBody"><span id="operationId"><span id="deprecated"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Operation</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-40"></span><span id="HasExplode"><span id="HasAllowReserved"><span id="HasAllowEmptyValue"><span id="HasStyle"><span id="HasIn"><span id="local-6989586621679997848"><span id="local-6989586621679997849"><span id="local-6989586621679997850"><span id="local-6989586621679997851"><span id="local-6989586621679997852"><span id="local-6989586621679997853"><span id="local-6989586621679997854"><span id="local-6989586621679997855"><span id="local-6989586621679997856"><span id="local-6989586621679997857"><span id="local-6989586621679999308"><span id="local-6989586621679999312"><span id="local-6989586621679999316"><span id="local-6989586621679999320"><span id="local-6989586621679999324"><span id="local-6989586621679999328"><span id="local-6989586621679999332"><span id="local-6989586621679999336"><span id="local-6989586621679999340"><span id="local-6989586621679999344"><span id="local-6989586621679999348"><span id="local-6989586621679999352"><span id="style"><span id="in_"><span id="explode"><span id="allowReserved"><span id="allowEmptyValue"><span class="hs-identifier">makeLensesWith</span><span> </span><span class="hs-identifier">swaggerFieldRules</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Param</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-41"></span><span id="local-6989586621679999547"><span id="local-6989586621679999551"><span id="local-6989586621679999555"><span id="local-6989586621679999559"><span id="local-6989586621679999563"><span id="local-6989586621679999567"><span id="local-6989586621679999571"><span id="local-6989586621679999575"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Header</span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-42"></span><span id="HasWriteOnly"><span id="HasUniqueItems"><span id="HasReadOnly"><span id="HasNullable"><span id="HasExclusiveMinimum"><span id="HasExclusiveMaximum"><span id="HasMinProperties"><span id="HasMinLength"><span id="HasMinItems"><span id="HasMaxProperties"><span id="HasMaxLength"><span id="HasMaxItems"><span id="HasEnum"><span id="HasOneOf"><span id="HasAnyOf"><span id="HasAllOf"><span id="HasDefault"><span id="HasMultipleOf"><span id="HasMinimum"><span id="HasMaximum"><span id="HasPattern"><span id="HasFormat"><span id="HasAdditionalProperties"><span id="HasNot"><span id="HasXml"><span id="HasDiscriminator"><span id="HasType"><span id="HasItems"><span id="HasProperties"><span id="local-6989586621679997913"><span id="local-6989586621679997914"><span id="local-6989586621679997915"><span id="local-6989586621679997916"><span id="local-6989586621679997917"><span id="local-6989586621679997918"><span id="local-6989586621679997919"><span id="local-6989586621679997920"><span id="local-6989586621679997921"><span id="local-6989586621679997922"><span id="local-6989586621679997923"><span id="local-6989586621679997924"><span id="local-6989586621679997925"><span id="local-6989586621679997926"><span id="local-6989586621679997927"><span id="local-6989586621679997928"><span id="local-6989586621679997929"><span id="local-6989586621679997930"><span id="local-6989586621679997931"><span id="local-6989586621679997932"><span id="local-6989586621679997933"><span id="local-6989586621679997934"><span id="local-6989586621679997935"><span id="local-6989586621679997936"><span id="local-6989586621679997937"><span id="local-6989586621679997938"><span id="local-6989586621679997939"><span id="local-6989586621679997940"><span id="local-6989586621679997941"><span id="local-6989586621679997942"><span id="local-6989586621679997943"><span id="local-6989586621679997944"><span id="local-6989586621679997945"><span id="local-6989586621679997946"><span id="local-6989586621679997947"><span id="local-6989586621679997948"><span id="local-6989586621679997949"><span id="local-6989586621679997950"><span id="local-6989586621679997951"><span id="local-6989586621679997952"><span id="local-6989586621679997953"><span id="local-6989586621679997954"><span id="local-6989586621679997955"><span id="local-6989586621679997956"><span id="local-6989586621679997957"><span id="local-6989586621679997958"><span id="local-6989586621679997959"><span id="local-6989586621679997960"><span id="local-6989586621679997961"><span id="local-6989586621679997962"><span id="local-6989586621679997963"><span id="local-6989586621679997964"><span id="local-6989586621679997965"><span id="local-6989586621679997966"><span id="local-6989586621679997967"><span id="local-6989586621679997968"><span id="local-6989586621679997969"><span id="local-6989586621679997970"><span id="local-6989586621679999669"><span id="local-6989586621679999673"><span id="local-6989586621679999677"><span id="local-6989586621679999681"><span id="local-6989586621679999685"><span id="local-6989586621679999689"><span id="local-6989586621679999693"><span id="local-6989586621679999697"><span id="local-6989586621679999701"><span id="local-6989586621679999705"><span id="local-6989586621679999709"><span id="local-6989586621679999713"><span id="local-6989586621679999717"><span id="local-6989586621679999721"><span id="local-6989586621679999725"><span id="local-6989586621679999729"><span id="local-6989586621679999733"><span id="local-6989586621679999737"><span id="local-6989586621679999741"><span id="local-6989586621679999745"><span id="local-6989586621679999749"><span id="local-6989586621679999753"><span id="local-6989586621679999757"><span id="local-6989586621679999761"><span id="local-6989586621679999765"><span id="local-6989586621679999769"><span id="local-6989586621679999773"><span id="local-6989586621679999777"><span id="local-6989586621679999781"><span id="local-6989586621679999785"><span id="local-6989586621679999789"><span id="local-6989586621679999793"><span id="local-6989586621679999797"><span id="local-6989586621679999801"><span id="local-6989586621679999805"><span id="xml"><span id="writeOnly"><span id="uniqueItems"><span id="type_"><span id="readOnly"><span id="properties"><span id="pattern"><span id="oneOf"><span id="nullable"><span id="not_"><span id="multipleOf"><span id="minimum_"><span id="minProperties"><span id="minLength"><span id="minItems"><span id="maximum_"><span id="maxProperties"><span id="maxLength"><span id="maxItems"><span id="items"><span id="format"><span id="exclusiveMinimum"><span id="exclusiveMaximum"><span id="enum_"><span id="discriminator"><span id="default_"><span id="anyOf"><span id="allOf"><span id="additionalProperties"><span class="hs-identifier">makeLensesWith</span><span> </span><span class="hs-identifier">swaggerFieldRules</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Schema</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-43"></span><span id="local-6989586621680001201"><span id="local-6989586621680001205"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">NamedSchema</span></span></span><span>
+</span><span id="line-44"></span><span id="HasWrapped"><span id="HasAttribute"><span id="HasPrefix"><span id="HasNamespace"><span id="local-6989586621679998013"><span id="local-6989586621679998014"><span id="local-6989586621679998015"><span id="local-6989586621679998016"><span id="local-6989586621679998017"><span id="local-6989586621679998018"><span id="local-6989586621679998019"><span id="local-6989586621679998020"><span id="local-6989586621680001220"><span id="local-6989586621680001224"><span id="local-6989586621680001228"><span id="local-6989586621680001232"><span id="local-6989586621680001236"><span id="wrapped"><span id="prefix"><span id="namespace"><span id="attribute"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Xml</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-45"></span><span id="local-6989586621680001289"><span id="local-6989586621680001293"><span class="hs-identifier">makeLensesWith</span><span> </span><span class="hs-identifier">swaggerFieldRules</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Responses</span></span></span><span>
+</span><span id="line-46"></span><span id="local-6989586621680001308"><span id="local-6989586621680001312"><span id="local-6989586621680001316"><span id="local-6989586621680001320"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Response</span></span></span></span></span><span>
+</span><span id="line-47"></span><span id="local-6989586621680001353"><span id="local-6989586621680001357"><span class="hs-identifier">makeLensesWith</span><span> </span><span class="hs-identifier">swaggerFieldRules</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">SecurityScheme</span></span></span><span>
+</span><span id="line-48"></span><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">ApiKeyParams</span><span>
+</span><span id="line-49"></span><span id="HasAuthorizationUrl"><span id="local-6989586621679998039"><span id="local-6989586621679998040"><span id="local-6989586621680001372"><span id="authorizationUrl"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">OAuth2ImplicitFlow</span></span></span></span></span></span><span>
+</span><span id="line-50"></span><span id="HasTokenUrl"><span id="local-6989586621679998050"><span id="local-6989586621679998051"><span id="local-6989586621680001385"><span id="tokenUrl"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">OAuth2PasswordFlow</span></span></span></span></span></span><span>
+</span><span id="line-51"></span><span id="local-6989586621680001396"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">OAuth2ClientCredentialsFlow</span></span><span>
+</span><span id="line-52"></span><span id="local-6989586621680001404"><span id="local-6989586621680001408"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">OAuth2AuthorizationCodeFlow</span></span></span><span>
+</span><span id="line-53"></span><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">OAuth2Flow</span><span>
+</span><span id="line-54"></span><span id="HasAuthorizationCode"><span id="HasClientCredentials"><span id="HasPassword"><span id="HasImplicit"><span id="local-6989586621679998064"><span id="local-6989586621679998065"><span id="local-6989586621679998066"><span id="local-6989586621679998067"><span id="local-6989586621679998068"><span id="local-6989586621679998069"><span id="local-6989586621679998070"><span id="local-6989586621679998071"><span id="local-6989586621680001423"><span id="local-6989586621680001427"><span id="local-6989586621680001431"><span id="local-6989586621680001435"><span id="password"><span id="implicit"><span id="clientCredentials"><span id="authorizationCode"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">OAuth2Flows</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-55"></span><span id="local-6989586621680001476"><span id="local-6989586621680001480"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">ExternalDocs</span></span></span><span>
+</span><span id="line-56"></span><span id="HasContentType"><span id="local-6989586621679998079"><span id="local-6989586621679998080"><span id="local-6989586621680001495"><span id="local-6989586621680001499"><span id="local-6989586621680001503"><span id="local-6989586621680001507"><span id="local-6989586621680001511"><span id="contentType"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Encoding</span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-57"></span><span id="HasValue"><span id="HasExternalValue"><span id="local-6989586621679998088"><span id="local-6989586621679998089"><span id="local-6989586621679998090"><span id="local-6989586621679998091"><span id="local-6989586621680001558"><span id="local-6989586621680001562"><span id="local-6989586621680001566"><span id="local-6989586621680001570"><span id="value"><span id="externalValue"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Example</span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-58"></span><span id="HasPropertyName"><span id="HasMapping"><span id="local-6989586621679998098"><span id="local-6989586621679998099"><span id="local-6989586621679998100"><span id="local-6989586621679998101"><span id="local-6989586621680001607"><span id="local-6989586621680001611"><span id="propertyName"><span id="mapping"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Discriminator</span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-59"></span><span id="HasOperationRef"><span id="HasServer"><span id="local-6989586621679998107"><span id="local-6989586621679998108"><span id="local-6989586621679998109"><span id="local-6989586621679998110"><span id="local-6989586621680001630"><span id="local-6989586621680001634"><span id="local-6989586621680001638"><span id="local-6989586621680001642"><span id="local-6989586621680001646"><span id="local-6989586621680001650"><span id="server"><span id="operationRef"><span class="hs-identifier">makeFields</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Link</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="annot"><span class="hs-comment">-- * Prisms</span></span><span>
+</span><span id="line-62"></span><span class="annot"><span class="hs-comment">-- ** 'SecuritySchemeType' prisms</span></span><span>
+</span><span id="line-63"></span><span id="_SecuritySchemeHttp"><span id="_SecuritySchemeApiKey"><span id="_SecuritySchemeOAuth2"><span id="_SecuritySchemeOpenIdConnect"><span class="hs-identifier">makePrisms</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">SecuritySchemeType</span></span></span></span></span><span>
+</span><span id="line-64"></span><span class="annot"><span class="hs-comment">-- ** 'Referenced' prisms</span></span><span>
+</span><span id="line-65"></span><span id="local-6989586621679998138"><span id="local-6989586621679998139"><span id="_Ref"><span id="_Inline"><span class="hs-identifier">makePrisms</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Referenced</span></span></span></span></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="annot"><span class="hs-comment">-- ** 'OpenApiItems' prisms</span></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="annot"><a href="Data.OpenApi.Lens.html#_OpenApiItemsArray"><span class="hs-identifier hs-type">_OpenApiItemsArray</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Review</span></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#OpenApiItems"><span class="hs-identifier hs-type">OpenApiItems</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.OpenApi.Internal.html#Referenced"><span class="hs-identifier hs-type">Referenced</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-70"></span><span id="_OpenApiItemsArray"><span class="annot"><span class="annottext">_OpenApiItemsArray :: Review OpenApiItems [Referenced Schema]
+</span><a href="Data.OpenApi.Lens.html#_OpenApiItemsArray"><span class="hs-identifier hs-var hs-var">_OpenApiItemsArray</span></a></span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([Referenced Schema] -&gt; OpenApiItems)
+-&gt; Optic
+     p
+     f
+     OpenApiItems
+     OpenApiItems
+     [Referenced Schema]
+     [Referenced Schema]
+forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) b t s a.
+(Profunctor p, Bifunctor p, Functor f) =&gt;
+(b -&gt; t) -&gt; Optic p f s t a b
+</span><span class="hs-identifier hs-var">unto</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621680001782"><span class="annot"><span class="annottext">[Referenced Schema]
+</span><a href="#local-6989586621680001782"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Referenced Schema] -&gt; OpenApiItems
+</span><a href="Data.OpenApi.Internal.html#OpenApiItemsArray"><span class="hs-identifier hs-var">OpenApiItemsArray</span></a></span><span> </span><span class="annot"><span class="annottext">[Referenced Schema]
+</span><a href="#local-6989586621680001782"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span class="hs-comment">{- \x -&gt; case x of
+      OpenApiItemsPrimitive c p -&gt; Left (OpenApiItemsPrimitive c p)
+      OpenApiItemsObject o      -&gt; Left (OpenApiItemsObject o)
+      OpenApiItemsArray a       -&gt; Right a
+-}</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="annot"><a href="Data.OpenApi.Lens.html#_OpenApiItemsObject"><span class="hs-identifier hs-type">_OpenApiItemsObject</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Review</span></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#OpenApiItems"><span class="hs-identifier hs-type">OpenApiItems</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.OpenApi.Internal.html#Referenced"><span class="hs-identifier hs-type">Referenced</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span id="_OpenApiItemsObject"><span class="annot"><span class="annottext">_OpenApiItemsObject :: Review OpenApiItems (Referenced Schema)
+</span><a href="Data.OpenApi.Lens.html#_OpenApiItemsObject"><span class="hs-identifier hs-var hs-var">_OpenApiItemsObject</span></a></span></span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Referenced Schema -&gt; OpenApiItems)
+-&gt; Optic
+     p
+     f
+     OpenApiItems
+     OpenApiItems
+     (Referenced Schema)
+     (Referenced Schema)
+forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) b t s a.
+(Profunctor p, Bifunctor p, Functor f) =&gt;
+(b -&gt; t) -&gt; Optic p f s t a b
+</span><span class="hs-identifier hs-var">unto</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621680001794"><span class="annot"><span class="annottext">Referenced Schema
+</span><a href="#local-6989586621680001794"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Referenced Schema -&gt; OpenApiItems
+</span><a href="Data.OpenApi.Internal.html#OpenApiItemsObject"><span class="hs-identifier hs-var">OpenApiItemsObject</span></a></span><span> </span><span class="annot"><span class="annottext">Referenced Schema
+</span><a href="#local-6989586621680001794"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span class="hs-comment">{- \x -&gt; case x of
+      OpenApiItemsPrimitive c p -&gt; Left (OpenApiItemsPrimitive c p)
+      OpenApiItemsObject o      -&gt; Right o
+      OpenApiItemsArray a       -&gt; Left (OpenApiItemsArray a)
+-}</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- =============================================================</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- More helpful instances for easier access to schema properties</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">instance</span><span> </span><span id="Index"><span class="annot"><span class="hs-identifier hs-var">Index</span></span></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Responses"><span class="hs-identifier hs-type">Responses</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#HttpStatusCode"><span class="hs-identifier hs-type">HttpStatusCode</span></a></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">instance</span><span> </span><span id="Index"><span class="annot"><span class="hs-identifier hs-var">Index</span></span></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Operation"><span class="hs-identifier hs-type">Operation</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#HttpStatusCode"><span class="hs-identifier hs-type">HttpStatusCode</span></a></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">instance</span><span> </span><span id="IxValue"><span class="annot"><span class="hs-identifier hs-var">IxValue</span></span></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Responses"><span class="hs-identifier hs-type">Responses</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Referenced"><span class="hs-identifier hs-type">Referenced</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Response"><span class="hs-identifier hs-type">Response</span></a></span><span>
+</span><span id="line-94"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">instance</span><span> </span><span id="IxValue"><span class="annot"><span class="hs-identifier hs-var">IxValue</span></span></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Operation"><span class="hs-identifier hs-type">Operation</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Referenced"><span class="hs-identifier hs-type">Referenced</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Response"><span class="hs-identifier hs-type">Response</span></a></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ixed</span></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Responses"><span class="hs-identifier hs-type">Responses</span></a></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621680001810"><span class="annot"><span class="annottext">ix :: Index Responses -&gt; Traversal' Responses (IxValue Responses)
+</span><a href="#local-6989586621680001810"><span class="hs-identifier hs-var hs-var hs-var">ix</span></a></span></span><span> </span><span id="local-6989586621680001812"><span class="annot"><span class="annottext">Index Responses
+</span><a href="#local-6989586621680001812"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(InsOrdHashMap HttpStatusCode (Referenced Response)
+ -&gt; f (InsOrdHashMap HttpStatusCode (Referenced Response)))
+-&gt; Responses -&gt; f Responses
+forall s a. HasResponses s a =&gt; Lens' s a
+Lens'
+  Responses (InsOrdHashMap HttpStatusCode (Referenced Response))
+</span><a href="Data.OpenApi.Lens.html#responses"><span class="hs-identifier hs-var">responses</span></a></span><span> </span><span class="annot"><span class="annottext">((InsOrdHashMap HttpStatusCode (Referenced Response)
+  -&gt; f (InsOrdHashMap HttpStatusCode (Referenced Response)))
+ -&gt; Responses -&gt; f Responses)
+-&gt; ((Referenced Response -&gt; f (Referenced Response))
+    -&gt; InsOrdHashMap HttpStatusCode (Referenced Response)
+    -&gt; f (InsOrdHashMap HttpStatusCode (Referenced Response)))
+-&gt; (Referenced Response -&gt; f (Referenced Response))
+-&gt; Responses
+-&gt; f Responses
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Index (InsOrdHashMap HttpStatusCode (Referenced Response))
+-&gt; Traversal'
+     (InsOrdHashMap HttpStatusCode (Referenced Response))
+     (IxValue (InsOrdHashMap HttpStatusCode (Referenced Response)))
+forall m. Ixed m =&gt; Index m -&gt; Traversal' m (IxValue m)
+</span><span class="hs-identifier hs-var">ix</span></span><span> </span><span class="annot"><span class="annottext">Index (InsOrdHashMap HttpStatusCode (Referenced Response))
+Index Responses
+</span><a href="#local-6989586621680001812"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-97"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">At</span></span><span>   </span><span class="annot"><a href="Data.OpenApi.Internal.html#Responses"><span class="hs-identifier hs-type">Responses</span></a></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621680001827"><span class="annot"><span class="annottext">at :: Index Responses -&gt; Lens' Responses (Maybe (IxValue Responses))
+</span><a href="#local-6989586621680001827"><span class="hs-identifier hs-var hs-var hs-var">at</span></a></span></span><span> </span><span id="local-6989586621680001829"><span class="annot"><span class="annottext">Index Responses
+</span><a href="#local-6989586621680001829"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(InsOrdHashMap HttpStatusCode (Referenced Response)
+ -&gt; f (InsOrdHashMap HttpStatusCode (Referenced Response)))
+-&gt; Responses -&gt; f Responses
+forall s a. HasResponses s a =&gt; Lens' s a
+Lens'
+  Responses (InsOrdHashMap HttpStatusCode (Referenced Response))
+</span><a href="Data.OpenApi.Lens.html#responses"><span class="hs-identifier hs-var">responses</span></a></span><span> </span><span class="annot"><span class="annottext">((InsOrdHashMap HttpStatusCode (Referenced Response)
+  -&gt; f (InsOrdHashMap HttpStatusCode (Referenced Response)))
+ -&gt; Responses -&gt; f Responses)
+-&gt; ((Maybe (Referenced Response)
+     -&gt; f (Maybe (Referenced Response)))
+    -&gt; InsOrdHashMap HttpStatusCode (Referenced Response)
+    -&gt; f (InsOrdHashMap HttpStatusCode (Referenced Response)))
+-&gt; (Maybe (Referenced Response) -&gt; f (Maybe (Referenced Response)))
+-&gt; Responses
+-&gt; f Responses
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Index (InsOrdHashMap HttpStatusCode (Referenced Response))
+-&gt; Lens'
+     (InsOrdHashMap HttpStatusCode (Referenced Response))
+     (Maybe
+        (IxValue (InsOrdHashMap HttpStatusCode (Referenced Response))))
+forall m. At m =&gt; Index m -&gt; Lens' m (Maybe (IxValue m))
+</span><span class="hs-identifier hs-var">at</span></span><span> </span><span class="annot"><span class="annottext">Index (InsOrdHashMap HttpStatusCode (Referenced Response))
+Index Responses
+</span><a href="#local-6989586621680001829"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ixed</span></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Operation"><span class="hs-identifier hs-type">Operation</span></a></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621680001838"><span class="annot"><span class="annottext">ix :: Index Operation -&gt; Traversal' Operation (IxValue Operation)
+</span><span class="hs-identifier hs-var hs-var hs-var">ix</span></span></span><span> </span><span id="local-6989586621680001839"><span class="annot"><span class="annottext">Index Operation
+</span><a href="#local-6989586621680001839"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Responses -&gt; f Responses) -&gt; Operation -&gt; f Operation
+forall s a. HasResponses s a =&gt; Lens' s a
+Lens' Operation Responses
+</span><a href="Data.OpenApi.Lens.html#responses"><span class="hs-identifier hs-var">responses</span></a></span><span> </span><span class="annot"><span class="annottext">((Responses -&gt; f Responses) -&gt; Operation -&gt; f Operation)
+-&gt; ((Referenced Response -&gt; f (Referenced Response))
+    -&gt; Responses -&gt; f Responses)
+-&gt; (Referenced Response -&gt; f (Referenced Response))
+-&gt; Operation
+-&gt; f Operation
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Index Responses -&gt; Traversal' Responses (IxValue Responses)
+forall m. Ixed m =&gt; Index m -&gt; Traversal' m (IxValue m)
+</span><span class="hs-identifier hs-var">ix</span></span><span> </span><span class="annot"><span class="annottext">Index Responses
+Index Operation
+</span><a href="#local-6989586621680001839"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-100"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">At</span></span><span>   </span><span class="annot"><a href="Data.OpenApi.Internal.html#Operation"><span class="hs-identifier hs-type">Operation</span></a></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621680001849"><span class="annot"><span class="annottext">at :: Index Operation -&gt; Lens' Operation (Maybe (IxValue Operation))
+</span><span class="hs-identifier hs-var hs-var hs-var">at</span></span></span><span> </span><span id="local-6989586621680001850"><span class="annot"><span class="annottext">Index Operation
+</span><a href="#local-6989586621680001850"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Responses -&gt; f Responses) -&gt; Operation -&gt; f Operation
+forall s a. HasResponses s a =&gt; Lens' s a
+Lens' Operation Responses
+</span><a href="Data.OpenApi.Lens.html#responses"><span class="hs-identifier hs-var">responses</span></a></span><span> </span><span class="annot"><span class="annottext">((Responses -&gt; f Responses) -&gt; Operation -&gt; f Operation)
+-&gt; ((Maybe (Referenced Response)
+     -&gt; f (Maybe (Referenced Response)))
+    -&gt; Responses -&gt; f Responses)
+-&gt; (Maybe (Referenced Response) -&gt; f (Maybe (Referenced Response)))
+-&gt; Operation
+-&gt; f Operation
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Index Responses -&gt; Lens' Responses (Maybe (IxValue Responses))
+forall m. At m =&gt; Index m -&gt; Lens' m (Maybe (IxValue m))
+</span><span class="hs-identifier hs-var">at</span></span><span> </span><span class="annot"><span class="annottext">Index Responses
+Index Operation
+</span><a href="#local-6989586621680001850"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#HasType"><span class="hs-identifier hs-type">HasType</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#NamedSchema"><span class="hs-identifier hs-type">NamedSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#OpenApiType"><span class="hs-identifier hs-type">OpenApiType</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621680001858"><span class="annot"><span class="annottext">type_ :: Lens' NamedSchema (Maybe OpenApiType)
+</span><a href="Data.OpenApi.Lens.html#type_"><span class="hs-identifier hs-var hs-var hs-var">type_</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; f Schema) -&gt; NamedSchema -&gt; f NamedSchema
+forall s a. HasSchema s a =&gt; Lens' s a
+Lens' NamedSchema Schema
+</span><a href="Data.OpenApi.Lens.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="annot"><span class="annottext">((Schema -&gt; f Schema) -&gt; NamedSchema -&gt; f NamedSchema)
+-&gt; ((Maybe OpenApiType -&gt; f (Maybe OpenApiType))
+    -&gt; Schema -&gt; f Schema)
+-&gt; (Maybe OpenApiType -&gt; f (Maybe OpenApiType))
+-&gt; NamedSchema
+-&gt; f NamedSchema
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">(Maybe OpenApiType -&gt; f (Maybe OpenApiType)) -&gt; Schema -&gt; f Schema
+forall s a. HasType s a =&gt; Lens' s a
+Lens' Schema (Maybe OpenApiType)
+</span><a href="Data.OpenApi.Lens.html#type_"><span class="hs-identifier hs-var">type_</span></a></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- OVERLAPPABLE instances</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">instance</span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-108"></span><span>  </span><span id="local-6989586621679998186"><span class="annot"><a href="Data.OpenApi.Lens.html#HasSchema"><span class="hs-identifier hs-type">HasSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998186"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#HasFormat"><span class="hs-identifier hs-type">HasFormat</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998186"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Format"><span class="hs-identifier hs-type">Format</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-110"></span><span>  </span><span id="local-6989586621680001867"><span class="annot"><span class="annottext">format :: Lens' s (Maybe Text)
+</span><a href="Data.OpenApi.Lens.html#format"><span class="hs-identifier hs-var hs-var hs-var">format</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; f Schema) -&gt; s -&gt; f s
+forall s a. HasSchema s a =&gt; Lens' s a
+Lens' s Schema
+</span><a href="Data.OpenApi.Lens.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="annot"><span class="annottext">((Schema -&gt; f Schema) -&gt; s -&gt; f s)
+-&gt; ((Maybe Text -&gt; f (Maybe Text)) -&gt; Schema -&gt; f Schema)
+-&gt; (Maybe Text -&gt; f (Maybe Text))
+-&gt; s
+-&gt; f s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">(Maybe Text -&gt; f (Maybe Text)) -&gt; Schema -&gt; f Schema
+forall s a. HasFormat s a =&gt; Lens' s a
+Lens' Schema (Maybe Text)
+</span><a href="Data.OpenApi.Lens.html#format"><span class="hs-identifier hs-var">format</span></a></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-keyword">instance</span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-114"></span><span>  </span><span id="local-6989586621679998189"><span class="annot"><a href="Data.OpenApi.Lens.html#HasSchema"><span class="hs-identifier hs-type">HasSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998189"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#HasItems"><span class="hs-identifier hs-type">HasItems</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998189"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#OpenApiItems"><span class="hs-identifier hs-type">OpenApiItems</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-116"></span><span>  </span><span id="local-6989586621680001876"><span class="annot"><span class="annottext">items :: Lens' s (Maybe OpenApiItems)
+</span><a href="Data.OpenApi.Lens.html#items"><span class="hs-identifier hs-var hs-var hs-var">items</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; f Schema) -&gt; s -&gt; f s
+forall s a. HasSchema s a =&gt; Lens' s a
+Lens' s Schema
+</span><a href="Data.OpenApi.Lens.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="annot"><span class="annottext">((Schema -&gt; f Schema) -&gt; s -&gt; f s)
+-&gt; ((Maybe OpenApiItems -&gt; f (Maybe OpenApiItems))
+    -&gt; Schema -&gt; f Schema)
+-&gt; (Maybe OpenApiItems -&gt; f (Maybe OpenApiItems))
+-&gt; s
+-&gt; f s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">(Maybe OpenApiItems -&gt; f (Maybe OpenApiItems))
+-&gt; Schema -&gt; f Schema
+forall s a. HasItems s a =&gt; Lens' s a
+Lens' Schema (Maybe OpenApiItems)
+</span><a href="Data.OpenApi.Lens.html#items"><span class="hs-identifier hs-var">items</span></a></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-keyword">instance</span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-120"></span><span>  </span><span id="local-6989586621679998192"><span class="annot"><a href="Data.OpenApi.Lens.html#HasSchema"><span class="hs-identifier hs-type">HasSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998192"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#HasMaximum"><span class="hs-identifier hs-type">HasMaximum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998192"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Scientific</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-122"></span><span>  </span><span id="local-6989586621680001885"><span class="annot"><span class="annottext">maximum_ :: Lens' s (Maybe Scientific)
+</span><a href="Data.OpenApi.Lens.html#maximum_"><span class="hs-identifier hs-var hs-var hs-var">maximum_</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; f Schema) -&gt; s -&gt; f s
+forall s a. HasSchema s a =&gt; Lens' s a
+Lens' s Schema
+</span><a href="Data.OpenApi.Lens.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="annot"><span class="annottext">((Schema -&gt; f Schema) -&gt; s -&gt; f s)
+-&gt; ((Maybe Scientific -&gt; f (Maybe Scientific))
+    -&gt; Schema -&gt; f Schema)
+-&gt; (Maybe Scientific -&gt; f (Maybe Scientific))
+-&gt; s
+-&gt; f s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">(Maybe Scientific -&gt; f (Maybe Scientific)) -&gt; Schema -&gt; f Schema
+forall s a. HasMaximum s a =&gt; Lens' s a
+Lens' Schema (Maybe Scientific)
+</span><a href="Data.OpenApi.Lens.html#maximum_"><span class="hs-identifier hs-var">maximum_</span></a></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span id="local-6989586621679998195"><span class="annot"><a href="Data.OpenApi.Lens.html#HasSchema"><span class="hs-identifier hs-type">HasSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998195"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#HasExclusiveMaximum"><span class="hs-identifier hs-type">HasExclusiveMaximum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998195"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-126"></span><span>  </span><span id="local-6989586621680001894"><span class="annot"><span class="annottext">exclusiveMaximum :: Lens' s (Maybe Bool)
+</span><a href="Data.OpenApi.Lens.html#exclusiveMaximum"><span class="hs-identifier hs-var hs-var hs-var">exclusiveMaximum</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; f Schema) -&gt; s -&gt; f s
+forall s a. HasSchema s a =&gt; Lens' s a
+Lens' s Schema
+</span><a href="Data.OpenApi.Lens.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="annot"><span class="annottext">((Schema -&gt; f Schema) -&gt; s -&gt; f s)
+-&gt; ((Maybe Bool -&gt; f (Maybe Bool)) -&gt; Schema -&gt; f Schema)
+-&gt; (Maybe Bool -&gt; f (Maybe Bool))
+-&gt; s
+-&gt; f s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">(Maybe Bool -&gt; f (Maybe Bool)) -&gt; Schema -&gt; f Schema
+forall s a. HasExclusiveMaximum s a =&gt; Lens' s a
+Lens' Schema (Maybe Bool)
+</span><a href="Data.OpenApi.Lens.html#exclusiveMaximum"><span class="hs-identifier hs-var">exclusiveMaximum</span></a></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span id="local-6989586621679998198"><span class="annot"><a href="Data.OpenApi.Lens.html#HasSchema"><span class="hs-identifier hs-type">HasSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998198"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#HasMinimum"><span class="hs-identifier hs-type">HasMinimum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998198"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Scientific</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-130"></span><span>  </span><span id="local-6989586621680001903"><span class="annot"><span class="annottext">minimum_ :: Lens' s (Maybe Scientific)
+</span><a href="Data.OpenApi.Lens.html#minimum_"><span class="hs-identifier hs-var hs-var hs-var">minimum_</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; f Schema) -&gt; s -&gt; f s
+forall s a. HasSchema s a =&gt; Lens' s a
+Lens' s Schema
+</span><a href="Data.OpenApi.Lens.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="annot"><span class="annottext">((Schema -&gt; f Schema) -&gt; s -&gt; f s)
+-&gt; ((Maybe Scientific -&gt; f (Maybe Scientific))
+    -&gt; Schema -&gt; f Schema)
+-&gt; (Maybe Scientific -&gt; f (Maybe Scientific))
+-&gt; s
+-&gt; f s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">(Maybe Scientific -&gt; f (Maybe Scientific)) -&gt; Schema -&gt; f Schema
+forall s a. HasMinimum s a =&gt; Lens' s a
+Lens' Schema (Maybe Scientific)
+</span><a href="Data.OpenApi.Lens.html#minimum_"><span class="hs-identifier hs-var">minimum_</span></a></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span id="local-6989586621679998201"><span class="annot"><a href="Data.OpenApi.Lens.html#HasSchema"><span class="hs-identifier hs-type">HasSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998201"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-133"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#HasExclusiveMinimum"><span class="hs-identifier hs-type">HasExclusiveMinimum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998201"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-134"></span><span>  </span><span id="local-6989586621680001912"><span class="annot"><span class="annottext">exclusiveMinimum :: Lens' s (Maybe Bool)
+</span><a href="Data.OpenApi.Lens.html#exclusiveMinimum"><span class="hs-identifier hs-var hs-var hs-var">exclusiveMinimum</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; f Schema) -&gt; s -&gt; f s
+forall s a. HasSchema s a =&gt; Lens' s a
+Lens' s Schema
+</span><a href="Data.OpenApi.Lens.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="annot"><span class="annottext">((Schema -&gt; f Schema) -&gt; s -&gt; f s)
+-&gt; ((Maybe Bool -&gt; f (Maybe Bool)) -&gt; Schema -&gt; f Schema)
+-&gt; (Maybe Bool -&gt; f (Maybe Bool))
+-&gt; s
+-&gt; f s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">(Maybe Bool -&gt; f (Maybe Bool)) -&gt; Schema -&gt; f Schema
+forall s a. HasExclusiveMinimum s a =&gt; Lens' s a
+Lens' Schema (Maybe Bool)
+</span><a href="Data.OpenApi.Lens.html#exclusiveMinimum"><span class="hs-identifier hs-var">exclusiveMinimum</span></a></span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span id="local-6989586621679998204"><span class="annot"><a href="Data.OpenApi.Lens.html#HasSchema"><span class="hs-identifier hs-type">HasSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998204"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#HasMaxLength"><span class="hs-identifier hs-type">HasMaxLength</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998204"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-138"></span><span>  </span><span id="local-6989586621680001921"><span class="annot"><span class="annottext">maxLength :: Lens' s (Maybe Integer)
+</span><a href="Data.OpenApi.Lens.html#maxLength"><span class="hs-identifier hs-var hs-var hs-var">maxLength</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; f Schema) -&gt; s -&gt; f s
+forall s a. HasSchema s a =&gt; Lens' s a
+Lens' s Schema
+</span><a href="Data.OpenApi.Lens.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="annot"><span class="annottext">((Schema -&gt; f Schema) -&gt; s -&gt; f s)
+-&gt; ((Maybe Integer -&gt; f (Maybe Integer)) -&gt; Schema -&gt; f Schema)
+-&gt; (Maybe Integer -&gt; f (Maybe Integer))
+-&gt; s
+-&gt; f s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">(Maybe Integer -&gt; f (Maybe Integer)) -&gt; Schema -&gt; f Schema
+forall s a. HasMaxLength s a =&gt; Lens' s a
+Lens' Schema (Maybe Integer)
+</span><a href="Data.OpenApi.Lens.html#maxLength"><span class="hs-identifier hs-var">maxLength</span></a></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span id="local-6989586621679998207"><span class="annot"><a href="Data.OpenApi.Lens.html#HasSchema"><span class="hs-identifier hs-type">HasSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998207"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#HasMinLength"><span class="hs-identifier hs-type">HasMinLength</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998207"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-142"></span><span>  </span><span id="local-6989586621680001930"><span class="annot"><span class="annottext">minLength :: Lens' s (Maybe Integer)
+</span><a href="Data.OpenApi.Lens.html#minLength"><span class="hs-identifier hs-var hs-var hs-var">minLength</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; f Schema) -&gt; s -&gt; f s
+forall s a. HasSchema s a =&gt; Lens' s a
+Lens' s Schema
+</span><a href="Data.OpenApi.Lens.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="annot"><span class="annottext">((Schema -&gt; f Schema) -&gt; s -&gt; f s)
+-&gt; ((Maybe Integer -&gt; f (Maybe Integer)) -&gt; Schema -&gt; f Schema)
+-&gt; (Maybe Integer -&gt; f (Maybe Integer))
+-&gt; s
+-&gt; f s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">(Maybe Integer -&gt; f (Maybe Integer)) -&gt; Schema -&gt; f Schema
+forall s a. HasMinLength s a =&gt; Lens' s a
+Lens' Schema (Maybe Integer)
+</span><a href="Data.OpenApi.Lens.html#minLength"><span class="hs-identifier hs-var">minLength</span></a></span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span id="local-6989586621679998210"><span class="annot"><a href="Data.OpenApi.Lens.html#HasSchema"><span class="hs-identifier hs-type">HasSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998210"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-145"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#HasPattern"><span class="hs-identifier hs-type">HasPattern</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998210"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-146"></span><span>  </span><span id="local-6989586621680001939"><span class="annot"><span class="annottext">pattern :: Lens' s (Maybe Text)
+</span><a href="Data.OpenApi.Lens.html#pattern"><span class="hs-identifier hs-var hs-var hs-var">pattern</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; f Schema) -&gt; s -&gt; f s
+forall s a. HasSchema s a =&gt; Lens' s a
+Lens' s Schema
+</span><a href="Data.OpenApi.Lens.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="annot"><span class="annottext">((Schema -&gt; f Schema) -&gt; s -&gt; f s)
+-&gt; ((Maybe Text -&gt; f (Maybe Text)) -&gt; Schema -&gt; f Schema)
+-&gt; (Maybe Text -&gt; f (Maybe Text))
+-&gt; s
+-&gt; f s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">(Maybe Text -&gt; f (Maybe Text)) -&gt; Schema -&gt; f Schema
+forall s a. HasPattern s a =&gt; Lens' s a
+Lens' Schema (Maybe Text)
+</span><a href="Data.OpenApi.Lens.html#pattern"><span class="hs-identifier hs-var">pattern</span></a></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span id="local-6989586621679998213"><span class="annot"><a href="Data.OpenApi.Lens.html#HasSchema"><span class="hs-identifier hs-type">HasSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998213"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-149"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#HasMaxItems"><span class="hs-identifier hs-type">HasMaxItems</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998213"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-150"></span><span>  </span><span id="local-6989586621680001948"><span class="annot"><span class="annottext">maxItems :: Lens' s (Maybe Integer)
+</span><a href="Data.OpenApi.Lens.html#maxItems"><span class="hs-identifier hs-var hs-var hs-var">maxItems</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; f Schema) -&gt; s -&gt; f s
+forall s a. HasSchema s a =&gt; Lens' s a
+Lens' s Schema
+</span><a href="Data.OpenApi.Lens.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="annot"><span class="annottext">((Schema -&gt; f Schema) -&gt; s -&gt; f s)
+-&gt; ((Maybe Integer -&gt; f (Maybe Integer)) -&gt; Schema -&gt; f Schema)
+-&gt; (Maybe Integer -&gt; f (Maybe Integer))
+-&gt; s
+-&gt; f s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">(Maybe Integer -&gt; f (Maybe Integer)) -&gt; Schema -&gt; f Schema
+forall s a. HasMaxItems s a =&gt; Lens' s a
+Lens' Schema (Maybe Integer)
+</span><a href="Data.OpenApi.Lens.html#maxItems"><span class="hs-identifier hs-var">maxItems</span></a></span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span id="local-6989586621679998216"><span class="annot"><a href="Data.OpenApi.Lens.html#HasSchema"><span class="hs-identifier hs-type">HasSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998216"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#HasMinItems"><span class="hs-identifier hs-type">HasMinItems</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998216"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-154"></span><span>  </span><span id="local-6989586621680001957"><span class="annot"><span class="annottext">minItems :: Lens' s (Maybe Integer)
+</span><a href="Data.OpenApi.Lens.html#minItems"><span class="hs-identifier hs-var hs-var hs-var">minItems</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; f Schema) -&gt; s -&gt; f s
+forall s a. HasSchema s a =&gt; Lens' s a
+Lens' s Schema
+</span><a href="Data.OpenApi.Lens.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="annot"><span class="annottext">((Schema -&gt; f Schema) -&gt; s -&gt; f s)
+-&gt; ((Maybe Integer -&gt; f (Maybe Integer)) -&gt; Schema -&gt; f Schema)
+-&gt; (Maybe Integer -&gt; f (Maybe Integer))
+-&gt; s
+-&gt; f s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">(Maybe Integer -&gt; f (Maybe Integer)) -&gt; Schema -&gt; f Schema
+forall s a. HasMinItems s a =&gt; Lens' s a
+Lens' Schema (Maybe Integer)
+</span><a href="Data.OpenApi.Lens.html#minItems"><span class="hs-identifier hs-var">minItems</span></a></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span id="local-6989586621679998219"><span class="annot"><a href="Data.OpenApi.Lens.html#HasSchema"><span class="hs-identifier hs-type">HasSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998219"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#HasUniqueItems"><span class="hs-identifier hs-type">HasUniqueItems</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998219"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-158"></span><span>  </span><span id="local-6989586621680001966"><span class="annot"><span class="annottext">uniqueItems :: Lens' s (Maybe Bool)
+</span><a href="Data.OpenApi.Lens.html#uniqueItems"><span class="hs-identifier hs-var hs-var hs-var">uniqueItems</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; f Schema) -&gt; s -&gt; f s
+forall s a. HasSchema s a =&gt; Lens' s a
+Lens' s Schema
+</span><a href="Data.OpenApi.Lens.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="annot"><span class="annottext">((Schema -&gt; f Schema) -&gt; s -&gt; f s)
+-&gt; ((Maybe Bool -&gt; f (Maybe Bool)) -&gt; Schema -&gt; f Schema)
+-&gt; (Maybe Bool -&gt; f (Maybe Bool))
+-&gt; s
+-&gt; f s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">(Maybe Bool -&gt; f (Maybe Bool)) -&gt; Schema -&gt; f Schema
+forall s a. HasUniqueItems s a =&gt; Lens' s a
+Lens' Schema (Maybe Bool)
+</span><a href="Data.OpenApi.Lens.html#uniqueItems"><span class="hs-identifier hs-var">uniqueItems</span></a></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span id="local-6989586621679998222"><span class="annot"><a href="Data.OpenApi.Lens.html#HasSchema"><span class="hs-identifier hs-type">HasSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998222"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#HasEnum"><span class="hs-identifier hs-type">HasEnum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998222"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span class="hs-special">]</span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-162"></span><span>  </span><span id="local-6989586621680001975"><span class="annot"><span class="annottext">enum_ :: Lens' s (Maybe [Value])
+</span><a href="Data.OpenApi.Lens.html#enum_"><span class="hs-identifier hs-var hs-var hs-var">enum_</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; f Schema) -&gt; s -&gt; f s
+forall s a. HasSchema s a =&gt; Lens' s a
+Lens' s Schema
+</span><a href="Data.OpenApi.Lens.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="annot"><span class="annottext">((Schema -&gt; f Schema) -&gt; s -&gt; f s)
+-&gt; ((Maybe [Value] -&gt; f (Maybe [Value])) -&gt; Schema -&gt; f Schema)
+-&gt; (Maybe [Value] -&gt; f (Maybe [Value]))
+-&gt; s
+-&gt; f s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">(Maybe [Value] -&gt; f (Maybe [Value])) -&gt; Schema -&gt; f Schema
+forall s a. HasEnum s a =&gt; Lens' s a
+Lens' Schema (Maybe [Value])
+</span><a href="Data.OpenApi.Lens.html#enum_"><span class="hs-identifier hs-var">enum_</span></a></span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span id="local-6989586621679998225"><span class="annot"><a href="Data.OpenApi.Lens.html#HasSchema"><span class="hs-identifier hs-type">HasSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998225"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#HasMultipleOf"><span class="hs-identifier hs-type">HasMultipleOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679998225"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Scientific</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-166"></span><span>  </span><span id="local-6989586621680001984"><span class="annot"><span class="annottext">multipleOf :: Lens' s (Maybe Scientific)
+</span><a href="Data.OpenApi.Lens.html#multipleOf"><span class="hs-identifier hs-var hs-var hs-var">multipleOf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; f Schema) -&gt; s -&gt; f s
+forall s a. HasSchema s a =&gt; Lens' s a
+Lens' s Schema
+</span><a href="Data.OpenApi.Lens.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="annot"><span class="annottext">((Schema -&gt; f Schema) -&gt; s -&gt; f s)
+-&gt; ((Maybe Scientific -&gt; f (Maybe Scientific))
+    -&gt; Schema -&gt; f Schema)
+-&gt; (Maybe Scientific -&gt; f (Maybe Scientific))
+-&gt; s
+-&gt; f s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">(Maybe Scientific -&gt; f (Maybe Scientific)) -&gt; Schema -&gt; f Schema
+forall s a. HasMultipleOf s a =&gt; Lens' s a
+Lens' Schema (Maybe Scientific)
+</span><a href="Data.OpenApi.Lens.html#multipleOf"><span class="hs-identifier hs-var">multipleOf</span></a></span><span>
+</span><span id="line-167"></span></pre></body></html>

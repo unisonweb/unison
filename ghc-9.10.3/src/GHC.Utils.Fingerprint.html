@@ -1,0 +1,103 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- ----------------------------------------------------------------------------</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--  (c) The University of Glasgow 2006</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Fingerprints for recompilation checking and ABI versioning.</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- https://gitlab.haskell.org/ghc/ghc/wikis/commentary/compiler/recompilation-avoidance</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- ----------------------------------------------------------------------------</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Utils.Fingerprint.html"><span class="hs-identifier">GHC.Utils.Fingerprint</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-15"></span><span>        </span><span class="annot"><a href="GHC.Utils.Fingerprint.html#readHexFingerprint"><span class="hs-identifier">readHexFingerprint</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>        </span><span class="annot"><a href="GHC.Utils.Fingerprint.html#fingerprintByteString"><span class="hs-identifier">fingerprintByteString</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Re-exported from GHC.Fingerprint</span></span><span>
+</span><span id="line-18"></span><span>        </span><span class="annot"><span class="hs-identifier">Fingerprint</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">fingerprint0</span></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>        </span><span class="annot"><span class="hs-identifier">fingerprintFingerprints</span></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>        </span><span class="annot"><span class="hs-identifier">fingerprintData</span></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>        </span><span class="annot"><span class="hs-identifier">fingerprintString</span></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>        </span><span class="annot"><a href="GHC.Utils.Fingerprint.html#fingerprintStrings"><span class="hs-identifier">fingerprintStrings</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>        </span><span class="annot"><span class="hs-identifier">getFileHash</span></span><span>
+</span><span id="line-24"></span><span>   </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.Basic.html"><span class="hs-identifier">GHC.Prelude.Basic</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Foreign.html"><span class="hs-identifier">Foreign</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.IO.html"><span class="hs-identifier">GHC.IO</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Numeric.html"><span class="hs-identifier">Numeric</span></a></span><span>          </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">readHex</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.html"><span class="hs-identifier">Data.ByteString</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Unsafe.html"><span class="hs-identifier">Data.ByteString.Unsafe</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Fingerprint.html"><span class="hs-identifier">GHC.Fingerprint</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- useful for parsing the output of 'md5sum', should we want to do that.</span><span>
+</span><span id="line-38"></span><span class="annot"><a href="GHC.Utils.Fingerprint.html#readHexFingerprint"><span class="hs-identifier hs-type">readHexFingerprint</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fingerprint</span></span><span>
+</span><span id="line-39"></span><span id="readHexFingerprint"><span class="annot"><span class="annottext">readHexFingerprint :: String -&gt; Fingerprint
+</span><a href="GHC.Utils.Fingerprint.html#readHexFingerprint"><span class="hs-identifier hs-var hs-var">readHexFingerprint</span></a></span></span><span> </span><span id="local-6989586621682327961"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682327961"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Fingerprint
+</span><span class="hs-identifier hs-var">Fingerprint</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621682327962"><span class="hs-identifier hs-var">w1</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621682327963"><span class="hs-identifier hs-var">w2</span></a></span><span>
+</span><span id="line-40"></span><span> </span><span class="hs-keyword">where</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682327964"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682327964"><span class="hs-identifier hs-var">s1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621682327965"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682327965"><span class="hs-identifier hs-var">s2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; String -&gt; (String, String)
+forall a. Int -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682327961"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-41"></span><span>       </span><span class="hs-special">[</span><span class="hs-special">(</span><span id="local-6989586621682327962"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621682327962"><span class="hs-identifier hs-var">w1</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ReadS Word64
+forall a. (Eq a, Num a) =&gt; ReadS a
+</span><span class="hs-identifier hs-var">readHex</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682327964"><span class="hs-identifier hs-var">s1</span></a></span><span>
+</span><span id="line-42"></span><span>       </span><span class="hs-special">[</span><span class="hs-special">(</span><span id="local-6989586621682327963"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621682327963"><span class="hs-identifier hs-var">w2</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ReadS Word64
+forall a. (Eq a, Num a) =&gt; ReadS a
+</span><span class="hs-identifier hs-var">readHex</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; String -&gt; String
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682327965"><span class="hs-identifier hs-var">s2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="annot"><a href="GHC.Utils.Fingerprint.html#fingerprintByteString"><span class="hs-identifier hs-type">fingerprintByteString</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Internal.Type.html#ByteString"><span class="hs-identifier hs-type">BS.ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fingerprint</span></span><span>
+</span><span id="line-45"></span><span id="fingerprintByteString"><span class="annot"><span class="annottext">fingerprintByteString :: ByteString -&gt; Fingerprint
+</span><a href="GHC.Utils.Fingerprint.html#fingerprintByteString"><span class="hs-identifier hs-var hs-var">fingerprintByteString</span></a></span></span><span> </span><span id="local-6989586621682327968"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621682327968"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO Fingerprint -&gt; Fingerprint
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafeDupablePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO Fingerprint -&gt; Fingerprint) -&gt; IO Fingerprint -&gt; Fingerprint
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-46"></span><span>  </span><span class="annot"><span class="annottext">ByteString -&gt; (CStringLen -&gt; IO Fingerprint) -&gt; IO Fingerprint
+forall a. ByteString -&gt; (CStringLen -&gt; IO a) -&gt; IO a
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Unsafe.html#unsafeUseAsCStringLen"><span class="hs-identifier hs-var">BS.unsafeUseAsCStringLen</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621682327968"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">((CStringLen -&gt; IO Fingerprint) -&gt; IO Fingerprint)
+-&gt; (CStringLen -&gt; IO Fingerprint) -&gt; IO Fingerprint
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621682327971"><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621682327971"><span class="hs-identifier hs-var">ptr</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682327972"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682327972"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; IO Fingerprint
+</span><span class="hs-identifier hs-var">fingerprintData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr CChar -&gt; Ptr Word8
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621682327971"><span class="hs-identifier hs-var">ptr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682327972"><span class="hs-identifier hs-var">len</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- See Note [Repeated -optP hashing]</span><span>
+</span><span id="line-49"></span><span class="annot"><a href="GHC.Utils.Fingerprint.html#fingerprintStrings"><span class="hs-identifier hs-type">fingerprintStrings</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fingerprint</span></span><span>
+</span><span id="line-50"></span><span id="fingerprintStrings"><span class="annot"><span class="annottext">fingerprintStrings :: [String] -&gt; Fingerprint
+</span><a href="GHC.Utils.Fingerprint.html#fingerprintStrings"><span class="hs-identifier hs-var hs-var">fingerprintStrings</span></a></span></span><span> </span><span id="local-6989586621682327974"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682327974"><span class="hs-identifier hs-var">ss</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Fingerprint] -&gt; Fingerprint
+</span><span class="hs-identifier hs-var">fingerprintFingerprints</span></span><span> </span><span class="annot"><span class="annottext">([Fingerprint] -&gt; Fingerprint) -&gt; [Fingerprint] -&gt; Fingerprint
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Fingerprint) -&gt; [String] -&gt; [Fingerprint]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Fingerprint
+</span><span class="hs-identifier hs-var">fingerprintString</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682327974"><span class="hs-identifier hs-var">ss</span></a></span><span>
+</span><span id="line-51"></span></pre></body></html>
