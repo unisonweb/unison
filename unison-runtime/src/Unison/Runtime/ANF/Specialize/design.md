@@ -340,14 +340,20 @@ embeds a b = couple a b || dive b
       ...
 ```
 
+There are two ways for `embeds a b` to hold:
+
+- **Coupling:** `a` and `b` are the same at the top, and each part of `a` embeds in the matching part of `b`. "The same at the top" means the same constructor, or a closure of the same function. A hole in `a` couples with anything.
+- **Diving:** `a` embeds in one of `b`'s parts. So `b` has something wrapped around `a`.
+
+For example, `Cons 1 _` embeds in `Cons 1 (Cons 2 _)` by coupling: both are a `Cons`, `1` embeds in `1`, and the hole embeds in `Cons 2 _`. And `Cons 2 _` embeds in `Cons 1 (Cons 2 _)` by diving into the tail.
+
 Before building a residual function for a new key, the partial evaluator checks it against the keys of residual functions for the same function that are still being built further up the walk. If `embeds old new` holds for one of them, the new key is just an old one with parts added, implying it is growing.
 
 (In the supercompilation literature, this check is called the _whistle_, as in "blowing the whistle".)
 
 When the whistle is blown, the partial evaluator then generalizes the new key using (`Unison.Runtime.ANF.Specialize.generalize`): the parts where it differs from the old key become holes, so they turn into parameters passed at run time. Thus, the key stops growing, so it repeats, and the memo table ensures subsequent calls get the same treatment. Only the parts that kept growing are no longer specialized on, and everything the two keys share stays known.
 
-Todo: it’s isn’t explained what coupling is here. 
-One note on this: two known literals “couple” only if the old one is no larger than the new one (`knownLE`). So a known counter going down, such as 5 then 4, never looks like growth, and a loop over a known count unfolds fully. A counter going up does count as growth, so the whistle can blow on it. `knownLE` orders a `Nat` by value, an `Int` by absolute value and a `Text` by size. Any two `Float`s couple, and anything else couples only when equal.
+One note on coupling: two known literals couple only if the old one is no larger than the new one (`knownLE`). So a known counter going down, such as 5 then 4, never looks like growth, and a loop over a known count unfolds fully. A counter going up does count as growth, so the whistle can blow on it. `knownLE` orders a `Nat` by value, an `Int` by absolute value and a `Text` by size. Any two `Float`s couple, and anything else couples only when equal.
 
 ### Budgets
 
@@ -416,22 +422,26 @@ A `handle` block whose free variables are all known is run on the interpreter, l
 
 ### 2. The handler stays, its body is specialized
 
-Todo: unclear what this means. last sentence is unclear.
+When the block has unknown variables and the handler can't be removed (level 3, which is tried first), the `handle` stays in the output. It is an ordinary handler, installed at run time.
 
-Otherwise the `handle` is kept in the output. The code under it is specialized as usual and its requests stay requests. An interpreter that uses an ability only for errors already loses all of its interpretive overhead this way.
+The code inside the block is still partially evaluated as usual. The only difference is that an ability request in it is emitted as a request, and the handler handles it at run time.
+
+This level alone is often enough. Take an interpreter whose `eval` calls `abort` when a division is by zero, run under a handler for `Abort`. Specializing it on a program removes all the dispatch on the program, as before. What is left is the program's arithmetic, with an `abort` request where a division can fail, inside one `handle`.
 
 ### 3. Fusing the handler away
 
-Todo: unclear.
+If the handler is a known function, the specializer tries to remove the `handle` from the output entirely.
 
-If the handler is a known function, the specializer tries to remove the `handle` altogether. No handler is emitted, and when the evaluator reaches a request, it handles it on the spot:
+The idea is that a request is a call to the handler, passing it the rest of the block as a continuation. When the handler is a known function, that call can be unfolded like any other call.
 
-- The handler's function is unfolded on a *static request* (`SReq`): the ability, the operation and its arguments.
-- The handler's match on the request picks its case now, as a known match.
-- The case's continuation variable is bound to a *static continuation* (`SKont`). This is the rest of the walk from the request, which the partial evaluator has in hand as its own `K`, another reason `partialEval` is in continuation-passing style.
-- Resuming it just carries on the walk with the resumed value.
+So no `handle` is emitted. The partial evaluator records which handler is in force and evaluates the block. When it reaches a request, it does what the runtime would do, but does it while specializing:
 
-Take a state handler and a straight-line body:
+1. **It calls the handler on the request.** The request is a known value (`SReq`): which ability, which operation, and the arguments, each known or not.
+2. **The handler matches on the request.** This is a match on a known value, so one case is picked and the match disappears.
+3. **The case's continuation `k` stands for the rest of the block** after the request (`SKont`). The partial evaluator already has this in hand: it is its own `K` at the request. This is another reason `partialEval` is in continuation-passing style.
+4. **When the case calls `k v`,** the partial evaluator goes on with the rest of the block, with `v` as the result of the request.
+
+Here is `runSt s do St.put (St.get + n)`, with `s` and `n` unknown. `runSt` is unfolded, and the handler in force is `go s`:
 
 ```unison
 runSt s p =
@@ -442,7 +452,11 @@ runSt s p =
   handle p () with go s
 ```
 
-Walking `St.put (St.get + n)` under it: `St.get` resumes with the state, so it *is* the state. `St.put v` resumes under a handler holding `v`, so the walker's record of the handler's state becomes `v`. No request, no continuation capture and no handler closure appear in the output. The state has become an ordinary variable.
+- **`St.get`.** `go s` is called on it, which picks the case `handle k s with go s`. So the block goes on with `s` as the result of `St.get`, still under `go s`. Nothing is emitted.
+- **`St.get + n`** is now `s + n`. Both are unknown, so the addition is emitted, and its result is a variable `v`.
+- **`St.put v`.** `go s` is called on it, which picks `handle k () with go s'`, with `s'` being `v`. So the block goes on with `()`, and the handler in force is now `go v`. Nothing is emitted.
+
+The output is the one addition. No request, no continuation capture and no handler closure appear in it. The state has become an ordinary variable: first `s`, then `v`.
 
 An abort handler becomes a branch. This is the full residual code for an interpreter with an `Abort` ability, specialized on the program `x * x - 10`, where subtraction below zero aborts:
 
