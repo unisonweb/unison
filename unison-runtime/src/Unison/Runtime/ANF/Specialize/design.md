@@ -143,7 +143,7 @@ This example illustrates the basic idea that **decisions made on known values va
 Now a few observations:
 
 - This example was overly simple in that **every variable was either completely known or completely unknown** (`n` was fully known, `x` was fully unknown). We'll want a middle ground, such as a pair whose first element is known, or an `Either` which is known to be `Left`, but with an unknown value inside the `Left`.
-- **The recursion ended because `n` was known.** In other code, recursion may be on unknown values, and inlining would never stop. Recognizing this and turning it into a loop in the output is the subject of "Recursion and termination".
+- **The recursion ended because `n` was known.** In other code, recursion may be on unknown values, and inlining would never stop. Recognizing this and turning it into a loop in the output is the subject of [Recursion and termination](#recursion-and-termination).
 
 Let's discuss these in turn.
 
@@ -357,7 +357,7 @@ One note on coupling: two known literals couple only if the old one is no larger
 
 ### Budgets
 
-The whistle is a heuristic, so hard limits back it up: steps of the partial evaluation walk (200,000), residual functions (500), unfolding depth (200), and the size of the generated code, set to a multiple of the size of the input function and its known values. Hitting the step or function limit means giving up, and returning the original closure unchanged, which is always correct. Hitting the depth limit residualizes the call instead, and hitting the size limit first retries with no handler fused (see "Failing safely").
+The whistle is a heuristic, so hard limits back it up: steps of the partial evaluation walk (200,000), residual functions (500), unfolding depth (200), and the size of the generated code, set to a multiple of the size of the input function and its known values. Hitting the step or function limit means giving up, and returning the original closure unchanged, which is always correct. Hitting the depth limit residualizes the call instead, and hitting the size limit first retries with no handler fused (see [Failing safely](#failing-safely)).
 
 ## What runs at specialization time
 
@@ -512,7 +512,7 @@ That is all there is to fusing when the block is straight-line code. Three thing
 
 ### A loop inside a fused handler
 
-Take `runSt s do count n` with `n` unknown. `count` recurses on an unknown `n`, so it can't be unfolded forever. As in "Recursion and termination", it has to become a residual function, `count'`, that calls itself.
+Take `runSt s do count n` with `n` unknown. `count` recurses on an unknown `n`, so it can't be unfolded forever. As in [Recursion and termination](#recursion-and-termination), it has to become a residual function, `count'`, that calls itself.
 
 But `count'` makes `St.get` and `St.put` requests, and the output has no handler to send them to.
 
@@ -707,7 +707,7 @@ A bridge can only be made for a handler whose cases resume as the last thing the
 
 ### 3. Otherwise: the handler stays
 
-When the handler isn't a known function, or fusing it doesn't work out (see "Failing safely"), the `handle` stays in the output. It is an ordinary handler, installed at run time.
+When the handler isn't a known function, or fusing it doesn't work out (see [Failing safely](#failing-safely)), the `handle` stays in the output. It is an ordinary handler, installed at run time.
 
 The code inside the block is still partially evaluated as usual. The only difference is that an ability request in it is emitted as a request, and the handler handles it at run time.
 
