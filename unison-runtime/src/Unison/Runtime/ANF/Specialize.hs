@@ -1,3 +1,4 @@
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
@@ -30,6 +31,7 @@ import Data.IntMap.Strict qualified as IM
 import Data.List (find, mapAccumL)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
+import GHC.Exts (isTrue#, reallyUnsafePtrEquality#)
 import System.IO.Unsafe (unsafePerformIO)
 import Unison.ABT.Normalized qualified as ABTN
 import Unison.Prelude
@@ -197,7 +199,43 @@ data KArg
   | -- | a continuation captured while specializing: code specialized on
     -- one resumes that one
     KKont Int
-  deriving (Eq, Ord)
+
+-- | Known values are compared by address before they are compared by
+-- structure: the runtime's equality has no such shortcut, and nearly every
+-- pair of equal known values met here is one value, a table of a program
+-- or an interpreter's code, reached twice.
+instance Eq KArg where
+  a == b = case (a, b) of
+    (KKnown v, KKnown w) -> sameBoxed v w || v == w
+    (KCon r t xs, KCon r' t' ys) -> r == r' && t == t' && xs == ys
+    (KClo f xs, KClo g ys) -> f == g && xs == ys
+    (KHole m, KHole n) -> m == n
+    (KKont i, KKont j) -> i == j
+    _ -> False
+
+instance Ord KArg where
+  compare a b = case (a, b) of
+    (KKnown v, KKnown w) -> if sameBoxed v w then EQ else compare v w
+    (KCon r t xs, KCon r' t' ys) -> compare r r' <> compare t t' <> compare xs ys
+    (KClo f xs, KClo g ys) -> compare f g <> compare xs ys
+    (KHole m, KHole n) -> compare m n
+    (KKont i, KKont j) -> compare i j
+    _ -> compare (rank a) (rank b)
+    where
+      rank :: KArg -> Int
+      rank = \case
+        KKnown {} -> 0
+        KCon {} -> 1
+        KClo {} -> 2
+        KHole {} -> 3
+        KKont {} -> 4
+
+-- | Whether two values are one boxed value, by address. False for some
+-- that are (one not yet evaluated), never true for two that differ.
+sameBoxed :: Val -> Val -> Bool
+sameBoxed v w = case (v, w) of
+  (BoxedVal !x, BoxedVal !y) -> isTrue# (reallyUnsafePtrEquality# x y)
+  _ -> False
 
 data GiveUp = GiveUp String
   deriving (Show)
@@ -1730,13 +1768,62 @@ material = \case
 -- an integer's magnitude, a text's length), so that a known counter going
 -- down never counts as growing.
 --
--- The answer for a pair of subterms is kept, so each pair is decided once:
--- the time is the product of the two sizes (times a logarithm for the
--- table). Without that the same pair is reached along many paths, by
--- coupling then diving and by diving then coupling, and the time is
+-- It is tried first with no table, for a fixed number of steps
+-- ('embedsWithin'), which decides nearly every pair. Past that the answer
+-- for a pair of subterms is kept ('embedsTabled'), so each pair is decided
+-- once: the time is the product of the two sizes (times a logarithm for
+-- the table). Without a table the same pair is reached along many paths,
+-- by coupling then diving and by diving then coupling, and the time is
 -- exponential in the depth.
 embeds :: KArg -> KArg -> Bool
-embeds a0 b0 = evalState (go na nb) IM.empty
+embeds a0 b0 = case embedsWithin embedsSteps a0 b0 of
+  Finished r _ -> r
+  OutOfSteps -> embedsTabled a0 b0
+
+-- | The steps 'embeds' takes without a table before it starts again with
+-- one. Nearly every pair is decided in a few steps: the keys are equal, or
+-- differ at the top.
+embedsSteps :: Int
+embedsSteps = 1000
+
+-- | An answer and the steps left, or none in the steps given.
+data Within = Finished !Bool !Int | OutOfSteps
+
+-- | 'embeds' with no table, giving up after the given number of steps: a
+-- step is a pair of subterms looked at, and with no table a pair may be
+-- looked at many times.
+embedsWithin :: Int -> KArg -> KArg -> Within
+embedsWithin steps a b
+  | steps <= 0 = OutOfSteps
+  | otherwise = case couple of
+      Finished False left -> case b of
+        KCon _ _ ys -> dive left ys
+        KClo _ ys -> dive left ys
+        _ -> Finished False left
+      answer -> answer
+  where
+    couple = case (a, b) of
+      (KHole _, _) -> Finished True (steps - 1)
+      (KKont _, KKont _) -> Finished True (steps - 1)
+      (KKnown v, KKnown w) -> Finished (knownEmbeds v w) (steps - 1)
+      (KCon r t xs, KCon r' t' ys) | r == r', t == t' -> both (steps - 1) xs ys
+      (KClo f xs, KClo g ys) | f == g -> both (steps - 1) xs ys
+      _ -> Finished False (steps - 1)
+    both left = curry \case
+      ([], []) -> Finished True left
+      (x : xs, y : ys) -> case embedsWithin left x y of
+        Finished True left' -> both left' xs ys
+        answer -> answer
+      _ -> Finished False left
+    dive left = \case
+      [] -> Finished False left
+      y : ys -> case embedsWithin left a y of
+        Finished False left' -> dive left' ys
+        answer -> answer
+
+-- | 'embeds' with the answer for each pair of subterms kept.
+embedsTabled :: KArg -> KArg -> Bool
+embedsTabled a0 b0 = evalState (go na nb) IM.empty
   where
     (na, _) = numbered 0 a0
     (nb, width) = numbered 0 b0
@@ -1752,7 +1839,7 @@ embeds a0 b0 = evalState (go na nb) IM.empty
     couple (Numbered _ a xs) (Numbered _ b ys) = case (a, b) of
       (KHole _, _) -> pure True
       (KKont _, KKont _) -> pure True
-      (KKnown v, KKnown w) -> pure (knownLE v w)
+      (KKnown v, KKnown w) -> pure (knownEmbeds v w)
       (KCon r t _, KCon r' t' _) | r == r', t == t', length xs == length ys -> allM (zip xs ys)
       (KClo f _, KClo g _) | f == g, length xs == length ys -> allM (zip xs ys)
       _ -> pure False
@@ -1764,12 +1851,16 @@ embeds a0 b0 = evalState (go na nb) IM.empty
     anyM x = \case
       [] -> pure False
       y : rest -> go x y >>= \r -> if r then pure True else anyM x rest
-    knownLE v w = case (v, w) of
-      (NatVal x, NatVal y) -> x <= y
-      (IntVal x, IntVal y) -> abs x <= abs y
-      (BoxedVal (TextC x), BoxedVal (TextC y)) -> Util.Text.size x <= Util.Text.size y
-      (DoubleVal _, DoubleVal _) -> True
-      _ -> safeEq (KKnown v) (KKnown w)
+
+-- | A known value embeds one at least as big, and otherwise only an equal
+-- one.
+knownEmbeds :: Val -> Val -> Bool
+knownEmbeds v w = case (v, w) of
+  (NatVal x, NatVal y) -> x <= y
+  (IntVal x, IntVal y) -> abs x <= abs y
+  (BoxedVal (TextC x), BoxedVal (TextC y)) -> Util.Text.size x <= Util.Text.size y
+  (DoubleVal _, DoubleVal _) -> True
+  _ -> sameBoxed v w || safeEq (KKnown v) (KKnown w)
 
 -- | Equality of keys that can't fail: comparing known values of different
 -- types is an error in the runtime's equality, and counts as different.
