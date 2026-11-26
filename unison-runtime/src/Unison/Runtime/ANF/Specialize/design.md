@@ -26,7 +26,7 @@ x -> x * (x * (x * 1))
 
 The specialized version of `power` given its first argument, `3`, is produced by *partial evaluation*. A partial evaluator runs a program on partially known input, producing a *residual* program that has been specialized for that input and often runs much faster.
 
-This can be to eliminate the overhead of generic code. For instance, `specialize sortBy Nat.compare` returns a sorting function specialized to `Nat`.
+This can be used to eliminate the overhead of generic code. For instance, `specialize sortBy Nat.compare` returns a sorting function specialized to `Nat`.
 
 It can also be used for specializing away interpreter overhead for domain-specific languages. For instance, here's a tiny DSL that supports arithmetic and function calls:
 
@@ -98,13 +98,13 @@ eval.specialized#3pt726rv21 prog e x =
 
 Notice all the `Expr` machinery is gone! `eval'` is `fibByHand`, and the entry just calls it.
 
-More generally, using partial evaluation to specialize an interpreter for a particular program yields compiled code for that program. This incredible fact is the [first Futamura projection](https://blog.sigfpe.com/2009/05/three-projections-of-doctor-futamura.html).
+More generally, using partial evaluation to specialize an interpreter for a particular program yields _compiled code for that program._ This incredible fact is the [first Futamura projection](https://blog.sigfpe.com/2009/05/three-projections-of-doctor-futamura.html).
 
 ## How it works
 
-`specialize f x` does the following:
+Here are the steps involved in `specialize f x`:
 
-1. It evaluates `f x` as normal. If the result is a closure (a partially applied function), move to step 2. If it's an ordinary value like `42`, then we're done.
+1. Evaluate `f x` as normal. If the result is a closure (a partially applied function), move to step 2. Otherwise, stop. 
 2. Look up the code for the returned closure. This code is in Unison's intermediate representation, the `ANF` type.
 3. Partially evaluate the returned closure, treating `x` as "known". This produces a *residualized* version of the closure, and possibly some residual versions of functions called by `f`.
 4. Load the residual `f` and its residual dependencies in one group, and return a Unison `Closure` pointing to it. This group of functions will be run efficiently with the interpreter and the JIT will compile them when hot.
@@ -219,7 +219,7 @@ data K
 
 ### Matches on known values disappear; matches on unknown values refine what is known in each arm
 
-A match on something known picks its arm now, and the match disappears:
+A match on something known picks its arm in partialEval, and the match disappears:
 
 ```haskell
 match env lim e v br k = case (look e v, br) of
@@ -257,7 +257,7 @@ v = foo x y
 bar v
 ```
 
-Whether the output needs a `let` here depends on what `foo x y` turns out to be. It may be that `foo x y` is fully known and can be simplified away and inlined into `bar`. Or it may be that some of the call to `foo` remains. CPS gives the partial evaluator the flexibility to do both. It can either eliminate a `let`, or it can keep it in the output.
+Whether the output needs a `let` here depends on what `foo x y` turns out to be. It may be that `foo x y` is fully known and can be simplified away and inlined into `bar`. Or it may be that some of the call to `foo` remains. CPS gives the partial evaluator the flexibility to do either one.
 
 ## Recursion and termination
 
@@ -272,9 +272,9 @@ A call of a known function can be handled two ways:
 
 The main idea is to unfold whenever it is safe, and residualize only to stop a walk that might not end.
 
-Unfolding is safe as long as every branch taken so far was decided by a known value. If we are taking branches based on a known value, we are doing exactly what the program would do at run time, and it will terminate whenever the program does. `power 3 x` unfolds three times because the program itself recurses three times.
+Unfolding is safe as long as every branch taken so far was decided by a known value. If partial evaluation is taking branches based on a known value, it is doing exactly what the program would do at run time, and it will terminate whenever the program does. `power 3 x` unfolds three times because the program itself recurses three times.
 
-Under a match on an unknown value, that guarantee is gone. Each arm of the match is code that may never be hit at runtime. The walker has to explore every arm, including paths that may never run, so a recursive call there could unfold forever. In `fac x`, the test `n == 0` is unknown, so the walker explores the `else` arm, meets `fac (n - 1)`, explores its `else` arm, and so on.
+Under a match on an unknown value, that guarantee is gone. Each arm of the match is code that may never be hit at runtime. The evaluator has to explore every arm, including paths that may never run, so a recursive call there could unfold forever. In `fac x`, the test `n == 0` is unknown, so the walker explores the `else` arm, meets `fac (n - 1)`, explores its `else` arm, and so on.
 
 So under an unknown match, the walker unfolds a call only if it doesn't look like a loop. A call looks like a loop in either of two cases:
 
@@ -282,8 +282,6 @@ So under an unknown match, the walker unfolds a call only if it doesn't look lik
 - **It has been seen before.** A residual function for the same arguments already exists.
 
 Take `fac x`. The walker unfolds it, hits the unknown `n == 0` test, explores the `else` arm, and meets `fac (n - 1)`. It is still unfolding `fac`, and the argument `n - 1` is unknown just as `x` was, so nothing known got smaller. That looks like a loop, so instead of unfolding, the walker emits a call to a residual function. That call is the loop in the output.
-
-When the call in progress that it repeats has the very same key, that unfolding was the first round of the loop. Leaving it in place would put the loop's body in the output twice, once inline and once as the residual function. So the walker goes back to that call, discards its unfolding, and makes it a call to the residual function as well (`Redo`, caught by `unfolding`). The call is remembered as the start of a loop, so it is residualized at once if it is met again.
 
 Separately, there is a depth limit of 200 nested unfoldings. Past it, a call is residualized even with no unknown match above it. This caps inlining in cases the loop check doesn't catch, for example a program that recurses very deeply on known data. It is not a termination guarantee by itself; for that we use the whistle and the hard budgets described later.
 
@@ -319,7 +317,7 @@ keyOf = \case
   ...
 ```
 
-The key goes into a memo table *before* the body is walked. So when the body calls the same function with the same key, it finds the entry and emits a call to the function being built. That is how recursion in the source becomes recursion in the output, and why `eval prog <body of 0> <unknown>` met a second time closes the loop.
+The key goes into a memo table *before* the body is walked. So when the body calls the same function with the same key, it finds the entry and emits a call to the function being built. That is how recursion in the source becomes recursion in the output.
 
 The holes become the residual function's parameters. `eval prog body x` with `prog` and `body` known and `x` unknown becomes a one-parameter function.
 
@@ -327,7 +325,7 @@ The holes become the residual function's parameters. `eval prog body x` with `pr
 
 Memoization only helps if keys repeat. Some programs make the known part grow on every round. (For instance, an interpreter in continuation-passing style is this case: each recursive call passes a bigger known continuation, so every key is new and the partial evaluator would generate functions forever.)
 
-The partial evaluator detects this with a standard test from the supercompilation literature, homeomorphic embedding ([Sørensen and Glück 1995](https://bibtex.github.io/ILPS-1995-SorensenG.html); [Leuschel 1998](https://link.springer.com/chapter/10.1007/3-540-49727-7_14)). The function `Unison.Runtime.ANF.Specialize.embeds a b` returns true if (roughly) `b` is `a` with parts added, so `a` is the earlier, smaller key.
+The partial evaluator detects this with a standard test from the supercompilation literature, homeomorphic embedding. The function `Unison.Runtime.ANF.Specialize.embeds a b` returns true if (roughly) `b` is `a` with parts added, so `a` is the earlier, smaller key.
 
 ```haskell
 embeds :: KArg -> KArg -> Bool
@@ -342,11 +340,14 @@ embeds a b = couple a b || dive b
       ...
 ```
 
-Before building a residual function for a new key, the partial evaluator checks it against the keys of residual functions for the same function that are still being built further up the walk. If `embeds old new` holds for one of them, the new key is just an old one with parts added: it is growing. In the supercompilation literature, this is called "blowing the whistle".
+Before building a residual function for a new key, the partial evaluator checks it against the keys of residual functions for the same function that are still being built further up the walk. If `embeds old new` holds for one of them, the new key is just an old one with parts added, implying it is growing.
 
-When the whistle is blown, the partial evaluator then generalizes the new key (`Unison.Runtime.ANF.Specialize.generalize`): the parts where it differs from the old key become holes, so they turn into parameters passed at run time. The key stops growing, so it repeats, and the memo table ensures subsequent calls get the same treatment. Only the parts that kept growing are no longer specialized on, and everything the two keys share stays known.
+(In the supercompilation literature, this check is called the _whistle_, as in "blowing the whistle".)
 
-Two known literals couple only if the old one is no larger than the new one (`knownLE`). So a known counter going down, such as 5 then 4, never looks like growth, and a loop over a known count unfolds fully. A counter going up does count as growth, so the whistle can blow on it. `knownLE` orders a `Nat` by value, an `Int` by absolute value and a `Text` by size. Any two `Float`s couple, and anything else couples only when equal.
+When the whistle is blown, the partial evaluator then generalizes the new key using (`Unison.Runtime.ANF.Specialize.generalize`): the parts where it differs from the old key become holes, so they turn into parameters passed at run time. Thus, the key stops growing, so it repeats, and the memo table ensures subsequent calls get the same treatment. Only the parts that kept growing are no longer specialized on, and everything the two keys share stays known.
+
+Todo: it’s isn’t explained what coupling is here. 
+One note on this: two known literals “couple” only if the old one is no larger than the new one (`knownLE`). So a known counter going down, such as 5 then 4, never looks like growth, and a loop over a known count unfolds fully. A counter going up does count as growth, so the whistle can blow on it. `knownLE` orders a `Nat` by value, an `Int` by absolute value and a `Text` by size. Any two `Float`s couple, and anything else couples only when equal.
 
 ### Budgets
 
@@ -380,7 +381,7 @@ Running code during specialization must not move, repeat or drop the program's e
 
 ## Abilities: removing handlers
 
-`handle` blocks and ability requests get specialized as well. It's about half of the specializer's code.
+`handle` blocks and ability requests get specialized as well. How this is done is fairly involved; it’s about half of the specializer's code.
 
 The running example for this section is a state handler, `runSt`, and a loop that uses it, `count`. `count n` adds `n`, `n - 1`, …, `1` to the state and returns the final state:
 
@@ -407,7 +408,7 @@ count n =
 
 So `runSt 2 do count 4` is 2 + 4 + 3 + 2 + 1 = 12.
 
-There are three levels, tried in order.
+There are three levels of specialization of handle blocks, tried in order.
 
 ### 1. Everything known: it runs
 
@@ -415,15 +416,19 @@ A `handle` block whose free variables are all known is run on the interpreter, l
 
 ### 2. The handler stays, its body is specialized
 
+Todo: unclear what this means. last sentence is unclear.
+
 Otherwise the `handle` is kept in the output. The code under it is specialized as usual and its requests stay requests. An interpreter that uses an ability only for errors already loses all of its interpretive overhead this way.
 
 ### 3. Fusing the handler away
 
-If the handler is a known function, the specializer tries to remove the `handle` altogether. No handler is emitted, and when the walk reaches a request, it handles it on the spot:
+Todo: unclear.
+
+If the handler is a known function, the specializer tries to remove the `handle` altogether. No handler is emitted, and when the evaluator reaches a request, it handles it on the spot:
 
 - The handler's function is unfolded on a *static request* (`SReq`): the ability, the operation and its arguments.
 - The handler's match on the request picks its case now, as a known match.
-- The case's continuation variable is bound to a *static continuation* (`SKont`). This is the rest of the walk from the request, which the walker has in hand as its own `K`, the reason `partialEval` is in continuation-passing style.
+- The case's continuation variable is bound to a *static continuation* (`SKont`). This is the rest of the walk from the request, which the partial evaluator has in hand as its own `K`, another reason `partialEval` is in continuation-passing style.
 - Resuming it just carries on the walk with the resumed value.
 
 Take a state handler and a straight-line body:
@@ -453,7 +458,7 @@ prog x =
     _ -> None
 ```
 
-The walker keeps the handlers in force as a stack of frames in its state, and for each one where its body's value goes. A case that does not resume drops the rest of the body; `handle k v with h'` carries on under `h'`; a plain `k v` returns to the case, which can do more work after.
+The evaluator keeps the handlers in force as a stack of frames in its state, and for each one where its body's value goes. A case that does not resume drops the rest of the body; `handle k v with h'` carries on under `h'`; a plain `k v` returns to the case, which can do more work after.
 
 ### Loops under a fused handler: passing the state
 
