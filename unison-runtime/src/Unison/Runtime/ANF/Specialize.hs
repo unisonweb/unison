@@ -125,7 +125,12 @@ type Term = ANormal Reference Symbol
 -- | A function: a group and the index of one of its lambdas (0 for the
 -- entry, @k * 2^16@ for the k-th local function).
 data Fn = Fn !Reference !Word64
-  deriving (Eq, Ord, Show)
+  deriving (Ord, Show)
+
+-- | The index first: the functions compared are mostly of one group, and
+-- equal references are compared hash against hash.
+instance Eq Fn where
+  Fn r i == Fn r' i' = i == i' && r == r'
 
 -- | What is known about a variable while specializing.
 data Abs
@@ -385,7 +390,7 @@ data S = S
     -- | the calls found to start a loop ('Redo'): residual from the start
     -- when met again. Outside the state that a rollback restores, so that
     -- a loop inside another is found once, not once per attempt around it
-    sLoops :: IORef [(Fn, [KArg], [KArg])]
+    sLoops :: IORef (M.Map Fn [([KArg], [KArg])])
   }
 
 type M = StateT S IO
@@ -474,7 +479,7 @@ specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
             either (\(Escape _ why) -> Left ("an escape from a fused handler: " ++ why)) id
               <$> Control.Exception.try @Escape
                 ( Right <$> do
-                    newIORef [] >>= \loopsRef -> newIORef M.empty >>= \valuedRef -> flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty M.empty 0 M.empty M.empty M.empty S.empty valuedRef M.empty M.empty S.empty 1 loopsRef) do
+                    newIORef M.empty >>= \loopsRef -> newIORef M.empty >>= \valuedRef -> flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty M.empty 0 M.empty M.empty M.empty S.empty valuedRef M.empty M.empty S.empty 1 loopsRef) do
                       argSyms <- traverse freshNamed (take (length args) vs)
                       restSyms <- traverse freshNamed (drop (length args) vs)
                       let restMems = drop (length args) ccs
@@ -881,7 +886,7 @@ call env lim e fa as k = case fa of
             hk <- gets (map (keyOf . frHandler) . takeWhile isFused . sFrames)
             loops <- gets sLoops >>= liftIO . readIORef
             active <- gets sUnfolding
-            if eDepth e < slDepth lim && not (eUnderDyn e && again) && not (any (\(f, ks, hs) -> f == fn && sameKey hk ks hs) loops)
+            if eDepth e < slDepth lim && not (eUnderDyn e && again) && not (any (\(ks, hs) -> sameKey hk ks hs) (M.findWithDefault [] fn loops))
               then do
                 uid <- gets sNextUnfold
                 modify' \s -> s {sNextUnfold = uid + 1}
@@ -891,7 +896,7 @@ call env lim e fa as k = case fa of
                 -- started: that one becomes the call of the loop
                 uid : _ -> do
                   ref <- gets sLoops
-                  liftIO (modifyIORef' ref ((fn, k0, hk) :))
+                  liftIO (modifyIORef' ref (M.insertWith (++) fn [(k0, hk)]))
                   steps <- gets sSteps
                   liftIO (seNote env ("a loop starts at an unfolding of " ++ maybe (show fn) show (case fn of Fn r' 0 -> seName env r'; _ -> Nothing) ++ ": walked again as a call"))
                   liftIO (throwIO (Redo uid steps))
