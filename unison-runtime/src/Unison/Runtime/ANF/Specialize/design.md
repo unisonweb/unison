@@ -59,7 +59,7 @@ fibProg =
 fib = specialize run fibProg
 ```
 
-`fib` comes out the same as if it were written by hand, and runs at the same speed as hand-written code:
+`fib` comes out the same as if it were written by hand, and runs at the same speed as hand-written code like this:
 
 ```unison
 fibByHand : Nat -> Nat
@@ -96,9 +96,9 @@ eval.specialized#3pt726rv21 prog e x =
   eval' x
 ```
 
-Notice all the `Expr` machinery is gone! `eval'` is `fibByHand`, and the entry just calls it.
+Notice all the `Expr` machinery is gone! `eval'` is essentially `fibByHand`, and the entry just calls it.
 
-More generally, using partial evaluation to specialize an interpreter for a particular program yields _compiled code for that program._ This incredible fact is the [first Futamura projection](https://blog.sigfpe.com/2009/05/three-projections-of-doctor-futamura.html).
+Using partial evaluation to specialize an interpreter for a particular program yields _compiled code for that program._ This incredible fact is the [first Futamura projection](https://blog.sigfpe.com/2009/05/three-projections-of-doctor-futamura.html).
 
 ## How it works
 
@@ -106,14 +106,10 @@ Here are the steps involved in `specialize f x`:
 
 1. Evaluate `f x` as normal. If the result is a closure (a partially applied function), move to step 2. Otherwise, stop. 
 2. Look up the code for the returned closure. This code is in Unison's intermediate representation, the `ANF` type.
-3. Partially evaluate the returned closure, treating `x` as "known". This produces a *residualized* version of the closure, and possibly some residual versions of functions called by `f`.
+3. Partially evaluate the returned closure, treating `x` as "known". This produces what is called a *residual* version of the closure, and possibly some residual versions of functions called by `f`.
 4. Load the residual `f` and its residual dependencies in one group, and return a Unison `Closure` pointing to it. This group of functions will be run efficiently with the interpreter and the JIT will compile them when hot.
 
-The specializer is a function from a closure to a closure, run inside the runtime, on the same intermediate code the interpreter executes.
-
-### Partial evaluation, a worked example
-
-Step 3 is where the interesting parts are. Here is a walkthrough of what happens given `specialize power 3`:
+As an example, here is a walkthrough of the partial evaluation that happens when calling `specialize power 3`:
 
 ```unison
 power n x = if n == 0 then 1 else x * power (n - 1) x
@@ -149,7 +145,7 @@ Let's discuss these in turn.
 
 ## Abstract values: what is known about each variable
 
-An ordinary evaluator maps each variable to a value. The specializer maps each variable to what it knows about the value, which may be everything, nothing, or something in between.
+An ordinary evaluator maps each variable to a value. The partial evaluator maps each variable to what it knows about the value, which may be everything, nothing, or something in between.
 
 ```haskell
 data Abs
@@ -173,7 +169,8 @@ power n x = if n == 0 then 1 else x * power (n - 1) x
 - **`Dyn`** names a variable in the code being generated. It is completely unknown. In `specialize power 3`, the second parameter to `power`, `x`, will be `Dyn`. The result of a call written `specialize.boundary f x` is also `Dyn`: the specializer keeps that call as a call.
 - **`Con` and `Clo`** are the in-between cases, not used by `specialize power 3`, but they are what makes the partial evaluator more than constant folding. A pair of a known tag and an unknown number is a `Con` whose match can still be decided now. A lambda that captures an unknown variable is a `Clo` that can still be inlined at its call.
 
-The last four exist for specializing ability handlers and are covered later.
+todo: backtick these
+The last four (SReq, SPure, SKont, and SBridge) exist for specializing ability handlers and are covered later.
 
 ## The partial evaluator
 
@@ -323,21 +320,10 @@ The holes become the residual function's parameters. `eval prog body x` with `pr
 
 ### The whistle
 
-Memoization only helps if keys repeat. Some programs make the known part grow on every round. (For instance, an interpreter in continuation-passing style is this case: each recursive call passes a bigger known continuation, so every key is new and the partial evaluator would generate functions forever.)
-
-The partial evaluator detects this with a standard test from the supercompilation literature, homeomorphic embedding. The function `Unison.Runtime.ANF.Specialize.embeds a b` returns true if (roughly) `b` is `a` with parts added, so `a` is the earlier, smaller key.
+Memoization only helps if keys repeat. Some programs make the known part grow on every recursive call. The partial evaluator detects this with a standard test from the supercompilation literature. The function `Unison.Runtime.ANF.Specialize.embeds a b` returns true if (roughly) `b` is `a` with parts added, so `a` is the earlier, smaller key.
 
 ```haskell
 embeds :: KArg -> KArg -> Bool
-embeds a b = couple a b || dive b
-  where
-    couple (KHole _) _ = True
-    couple (KKnown v) (KKnown w) = knownLE v w
-    couple (KCon r t xs) (KCon r' t' ys) = r == r' && t == t' && and (zipWith embeds xs ys)
-    ...
-    dive = \case
-      KCon _ _ ys -> any (embeds a) ys   -- a is inside one of b's parts
-      ...
 ```
 
 There are two ways for `embeds a b` to hold:
@@ -366,16 +352,6 @@ When everything a piece of code needs is known, the specializer does not walk it
 ```haskell
 -- A term whose free variables are all known, run on the interpreter.
 runIfKnown :: SpecEnv -> E -> Term -> M (Maybe Val)
-runIfKnown env e t =
-  if S.disjoint (ABTN.freeVars t) (eUnknown e)
-    then
-      allKnown env abss >>= \case
-        Nothing -> pure Nothing
-        Just vs -> liftIO (seRunTerm env (zip fvs (map memOf abss)) t vs)
-    else pure Nothing
-  where
-    fvs = S.toList (ABTN.freeVars t)
-    abss = map (look e) fvs
 ```
 
 The check is cheap when the answer is no, which is the case where the walk goes on into the term and may ask again about each part of it:
