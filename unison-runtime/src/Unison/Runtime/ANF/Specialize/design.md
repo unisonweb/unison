@@ -72,7 +72,7 @@ fibByHand x =
 You can inspect the results of specialization with a new builtin, `runtime.ir : a -> Text` which prints the runtime representation of a Unison value. Here's `runtime.ir (specialize run fibProg)`:
 
 ```
-eval.specialized#3pt726rv21 prog e x =
+eval.specialized#02m1laefmu prog e x =
   eval' x1 =
     lit = 0
     v1 = x1 == lit
@@ -127,7 +127,7 @@ Here's the actual code `runtime.ir (specialize power 3)`:
 
 ```
 -- specialize power 3
-power.specialized#tlbm35jj8q n x =
+power.specialized#013qo80bla n x =
   lit = 1
   v1 = x Nat.* lit
   v2 = x Nat.* v1
@@ -433,7 +433,7 @@ straight _ s n = runSt s do
 This is `runtime.ir (specialize straight ())`:
 
 ```
-straight.specialized#mebq93d67m _ s n =
+straight.specialized#01c6j7uqg1 _ s n =
   v1 = s Nat.+ n
   lit = 2
   v1 Nat.* lit
@@ -466,7 +466,7 @@ divs _ a b = orElse 0 do safeDiv a b + safeDiv b a
 This is `runtime.ir (specialize divs ())`. Where `abort` was, the output is just `0`, the value of the whole `handle`:
 
 ```
-divs.specialized#k5df05hqsq _ a b =
+divs.specialized#02eagb7st1 _ a b =
   lit = 0
   v1 = b == lit
   match v1 with
@@ -495,7 +495,7 @@ The handler in force is a closure, here `go s`. We call the values it closes ove
 So the residual function takes the handler's state as an extra parameter, and returns the state along with its result. This is `runtime.ir (specialize loop ())`, for `loop _ s n = runSt s do count n`:
 
 ```
-loop.specialized#sevb7e165n _ s n =
+loop.specialized#02n52n07r1 _ s n =
   count' n1 s2 =
     lit = 0
     v1 = n1 == lit
@@ -598,7 +598,7 @@ There are two ways to deal with this, and the specializer uses both:
 The specializer first makes a join point. When it is done, a join point that is small is copied back into the arms that call it. That is what happens to `joined`. This is `runtime.ir (specialize joined ())`:
 
 ```
-joined.specialized#tggnjereq4 _ s b n =
+joined.specialized#03tf31lvge _ s b n =
   match b with
     false ->
       lit = 7
@@ -639,7 +639,7 @@ So a real handler is put around that one call, and nowhere else. It is called a 
 This is `runtime.ir (specialize viaU ())`:
 
 ```
-viaU.specialized#r1m55nhvjk _ s f =
+viaU.specialized#001il09tv9 _ s f =
   bridge' s2 request =
     match request with
       {put s'} ->
@@ -703,7 +703,7 @@ keptEx _ f n = countTicks do
 This is `runtime.ir (specialize keptEx ())`. `handled` is the block, `fn` is the handler `h`, and `tick` is still a request:
 
 ```
-keptEx.specialized#2ko78n6gln _ f n =
+keptEx.specialized#0059hkhcm5 _ f n =
   handled f n =
     x = f n
     lit = 0
