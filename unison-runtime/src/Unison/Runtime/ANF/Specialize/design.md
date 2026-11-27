@@ -338,7 +338,7 @@ Before building a residual function for a new key, the partial evaluator checks 
 
 When the whistle is blown, the partial evaluator then generalizes the new key using (`Unison.Runtime.ANF.Specialize.generalize`): the parts where it differs from the old key become holes, so they turn into parameters passed at run time. Thus, the key stops growing, so it repeats, and the memo table ensures subsequent calls get the same treatment. Only the parts that kept growing are no longer specialized on, and everything the two keys share stays known.
 
-One note on coupling: two known literals couple only if the old one is no larger than the new one (`knownLE`). So a known counter going down, such as 5 then 4, never looks like growth, and a loop over a known count unfolds fully. A counter going up does count as growth, so the whistle can blow on it. `knownLE` orders a `Nat` by value, an `Int` by absolute value and a `Text` by size. Any two `Float`s couple, and anything else couples only when equal.
+One note on coupling: two known literals couple only if the old one is no larger than the new one (`knownEmbeds`). So a known counter going down, such as 5 then 4, never looks like growth, and a loop over a known count unfolds fully. A counter going up does count as growth, so the whistle can blow on it. `knownEmbeds` orders a `Nat` by value, an `Int` by absolute value and a `Text` by size. Any two `Float`s couple, and anything else couples only when equal.
 
 ### Budgets
 
@@ -356,7 +356,7 @@ runIfKnown :: SpecEnv -> E -> Term -> M (Maybe Val)
 Running code during partial evaluation must not move, repeat or drop the program's effects, so it is guarded:
 
 - **Only pure code runs.** A run is refused if it would perform an effect or touch a mutable value (a `Ref`, an `MVar`, a handle). Those are treated as known but opaque: they can be passed around and stored, and every operation on them stays in the output.
-- **Runs are bounded in time.** A known computation that would not finish is cut off, and the code stays in the output for run time to deal with.
+- **Runs are bounded.** A known computation that would not finish is cut off, and the code stays in the output for run time to deal with. The one exception is a single call of a builtin that cannot call back into Unison code, which runs to its end.
 - **A failing run is not an error.** If known code would crash (`List.at!` out of range under a branch that never executes), the specializer emits the code instead. The crash happens at run time, if that path is ever taken, as it would have without `specialize`.
 
 ## Abilities: removing handlers
@@ -836,7 +836,8 @@ specialized. To get the best results:
   ones that aren't recursive and are called once or are small.
 - **Running known code.** `runKnown` in `Machine.hs` calls the interpreter on a fresh stack. It
   refuses code that can reach an IO builtin or an operation on mutable state, and bounds the run
-  with fuel counted per call and a time limit.
+  with fuel counted per call and a time limit. A call of a plain builtin has no time limit, since
+  the timer costs more than the call.
 
 ## Testing
 
@@ -862,7 +863,7 @@ What the specializer does not do today, each of which falls back to correct but 
 
 ## A map of the code
 
-Almost everything is in one file, `unison-runtime/src/Unison/Runtime/ANF/Specialize.hs` (about 2,700 lines). It has no dependency on the machine: everything it needs from the runtime comes in through a record of callbacks, `SpecEnv`, which makes it testable on its own. The snippets above are trimmed for reading; names match the code.
+Almost everything is in one file, `unison-runtime/src/Unison/Runtime/ANF/Specialize.hs` (about 3,000 lines). It has no dependency on the machine: everything it needs from the runtime comes in through a record of callbacks, `SpecEnv`, which makes it testable on its own. The snippets above are trimmed for reading; names match the code.
 
 | To understand | Read |
 | --- | --- |
