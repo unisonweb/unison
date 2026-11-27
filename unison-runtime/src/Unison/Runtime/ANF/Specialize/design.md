@@ -169,8 +169,7 @@ power n x = if n == 0 then 1 else x * power (n - 1) x
 - **`Dyn`** names a variable in the code being generated. It is completely unknown. In `specialize power 3`, the second parameter to `power`, `x`, will be `Dyn`. The result of a call written `specialize.boundary f x` is also `Dyn`: the specializer keeps that call as a call.
 - **`Con` and `Clo`** are the in-between cases, not used by `specialize power 3`, but they are what makes the partial evaluator more than constant folding. A pair of a known tag and an unknown number is a `Con` whose match can still be decided now. A lambda that captures an unknown variable is a `Clo` that can still be inlined at its call.
 
-todo: backtick these
-The last four (SReq, SPure, SKont, and SBridge) exist for specializing ability handlers and are covered later.
+The last four (`SReq`, `SPure`, `SKont`, and `SBridge`) exist for specializing ability handlers and are covered later.
 
 ## The partial evaluator
 
@@ -792,7 +791,7 @@ See `specializeClosure` and `specializedRef` in [`Machine.hs`](../../Machine.hs)
   on. Use it for slow paths not worth copying into every specialization, for code that should be
   compiled once and shared, and to stop precomputation: `specialize.boundary (n -> List.range 0
   n) 1000000` stays a call instead of a million-element constant. Outside `specialize` it costs
-  nothing, since the ordinary optimizer inlines it away. Todo: is this true?
+  nothing, since the ordinary optimizer inlines it away.
 - **`runtime.ir v`** shows what the runtime runs for a value: for a closure, its captured values
   and its optimized code, with every generated function. Generated code keeps the program's
   variable names, and a residual function is named after the function it came from with a prime
