@@ -79,16 +79,16 @@ eval.specialized#02m1laefmu prog e x =
     match v1 with
       false ->
         lit1 = 1
-        v2 = Nat.drop x1 lit1
+        v2 = x1 Nat.- lit1
         lit2 = 0
         v3 = v2 == lit2
         match v3 with
           false ->
             lit3 = 1
-            v4 = Nat.drop x1 lit3
+            v4 = x1 Nat.- lit3
             v5 = eval' v4
             lit4 = 2
-            v6 = Nat.drop x1 lit4
+            v6 = x1 Nat.- lit4
             v7 = eval' v6
             v5 Nat.+ v7
           _ -> 1
@@ -503,7 +503,7 @@ loop.specialized#02n52n07r1 _ s n =
       false ->
         v2 = s2 Nat.+ n1
         lit1 = 1
-        v3 = Nat.drop n1 lit1
+        v3 = n1 Nat.- lit1
         count' v3 v2
       _ ->
         p1 = (s2, s2)
@@ -556,7 +556,7 @@ ticks' n1 k1 =
   match v2 with
     false ->
       lit2 = 1
-      v3 = Nat.drop n1 lit2
+      v3 = n1 Nat.- lit2
       k2 = partialApply resume1 n1 k1
       r1 = ticks' v3 k2
       match r1 with
