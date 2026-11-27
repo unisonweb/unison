@@ -765,24 +765,29 @@ The walker's state is an immutable value threaded through a state monad, so roll
 ## A specialized closure as a value
 
 `specialize f x` means the same as `f x`, but it may be a different value: it can compare unequal
-to `f x` and hash differently. Its identity is "`f` specialized on `x`".
+to `f x` and hash differently.
 
-- **It is an ordinary closure** over a generated function, so equality, ordering and hashing need
-  no special case. The generated function's reference is a hash of the closure it was made from,
-  not of the generated code. Two specializations of the same `f` on the same `x` are equal, in
-  this process and in any other, and stay equal when the specializer changes. The second one
-  generates nothing.
-- **Serialization ships the original closure**, marked as specialized, because no codebase holds
-  the generated code. Reading it back specializes it again, which gives the same identity. The
-  mark needs version 5 of the value format, which `Value.serialize` uses only for a value that
-  holds a specialized closure. Todo: hmm, this decision seems wrong. It doesn't matter if the recipient codebase has the code, the code syncing protocol will sync anything missing.
+- **It is an ordinary closure** over a generated function, so equality, ordering, hashing and
+  serialization need no special case. The generated function's reference is a hash of its code,
+  the one `Code.validateLinks` computes.
+- **Specializing the same closure twice does the work once**, and gives equal closures. The
+  runtime remembers what it made of each closure, by a hash of the closure. This holds within a
+  process: another process, or another version of the specializer, may generate different code,
+  and then the closures are unequal.
+- **Serialization ships the specialized closure** as it is. `Code.lookup` finds the generated
+  code like any other loaded code, so the usual code sync sends it to a receiver that lacks it.
+  The receiver does not specialize again.
+- **Showing it as `specialize f x`** uses a table the runtime keeps of where each generated
+  function came from. The table stays in the process that specialized. Elsewhere the closure is
+  shown by the generated function's hash.
+- **When the specializer gives up**, `specialize f x` is `f x` itself.
 - **Mutable values are known but opaque.** A `Ref` or `MVar` in `x` is passed along and shared
   with `f x`, and every operation on it stays in the output. Closures that differ only in which
   mutable value they hold share the generated code.
 - **When `f x` isn't a closure**, including when it has run to a plain value, it is returned as
   it is.
 
-See `specializeClosure` and `specializedRef` in [`Machine.hs`](../../Machine.hs).
+See `specializeClosure`, `closureKey` and `hashedGroup` in [`Machine.hs`](../../Machine.hs).
 
 ## Steering and inspecting
 
@@ -876,6 +881,6 @@ Almost everything is in one file, `unison-runtime/src/Unison/Runtime/ANF/Special
 | The bridge | `bridgeCall`, `bridgeFn`, `resumeBridge` |
 | Backing out | `Escape`, `GiveUp`, `guardFused`, `withBarrier` |
 | Budgets | `SpecLimits`, `tick`, `emitted`; `specLimits` in `Machine.hs` |
-| The builtin, closure identity and serialization | `specializeClosure`, `specializedRef` in `Machine.hs` |
+| The builtin, closure identity and serialization | `specializeClosure`, `closureKey`, `hashedGroup` in `Machine.hs` |
 
 The transcripts `unison-src/transcripts/idempotent/specialize.md` and `specialize-differential.md` are the best place to see real input and output side by side.

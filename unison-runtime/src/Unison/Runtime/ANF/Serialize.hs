@@ -699,13 +699,6 @@ putValue v (Cont bs k) =
     <> putFoldable (putValue v) bs
     <> putCont v k
 putValue v (BLit (Map l)) = putAsMap v l
--- Only version 5 can carry a specialized closure across processes
--- (ValueV5); an older format gets the closure it was made from, which
--- means the same, unspecialized. The hash keeps the distinction, so that
--- a specialized closure hashes as it compares.
-putValue v (Specialized c)
-  | Hash _ <- v = putTag SpecializedT <> putValue v c
-  | otherwise = putValue v c
 putValue v (BLit l) =
   putTag BLitT <> putBLit v l
 
@@ -758,8 +751,6 @@ getValue s@(v, _) =
           k <- getCont s
           pure $ Cont bs k
     BLitT -> BLit <$> getBLit s
-    SpecializedT ->
-      exn [] "getValue: a specialized closure in a payload older than version 5"
   where
     assertEmptyUnboxed :: (PrimBase m) => [a] -> Get m ()
     assertEmptyUnboxed [] = pure ()
@@ -915,14 +906,6 @@ serializeValue (dereference -> v) =
     putVersion <> putValue (Transfer valueVersion) v
   where
     putVersion = BU.word32BE valueVersion
-
--- | The value format for @Value.serialize@: version 4, which older
--- runtimes read, unless the value holds a specialized closure, which only
--- version 5 can carry.
-serializeValueLatest :: Referenced Value -> IO L.ByteString
-serializeValueLatest rval
-  | hasSpecialized (dereference rval) = serializeValueWithVersion 5 rval
-  | otherwise = pure . L.fromStrict $ serializeValue rval
 
 serializeValueWithVersion ::
   Word64 -> Referenced Value -> IO L.ByteString

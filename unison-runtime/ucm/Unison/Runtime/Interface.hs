@@ -490,7 +490,7 @@ checkCacheability cl ctx (r, sg) =
 specializedFrom :: CCache p -> Reference -> Maybe (CombIx, Int, Int)
 specializedFrom cc r =
   -- the read depends on r, so that GHC cannot share one read among lookups
-  unsafePerformIO $ fmap (\(cix, n, extras, _) -> (cix, n, length extras)) . Map.lookup r <$> readTVarIO (specializations cc)
+  unsafePerformIO $ Map.lookup r <$> readTVarIO (specializations cc)
 {-# NOINLINE specializedFrom #-}
 
 decompileCtx ::

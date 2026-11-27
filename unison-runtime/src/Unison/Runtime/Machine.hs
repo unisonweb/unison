@@ -97,6 +97,7 @@ import Unison.Runtime.ANF as ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
+import Unison.Runtime.ANF.Rehash (rehashGroups)
 import Unison.Runtime.ANF.Serialize (serializeValueForHash)
 import Unison.Runtime.ANF.Specialize qualified as SP
 import Unison.Runtime.Builtin.Decls (exceptionRef)
@@ -2384,28 +2385,29 @@ canonicalizeReferenced x = mediate $ recanonicalizeRefs x
 -- that has captured something, specialized on all of it. Anything else (a
 -- closure that has captured nothing, a builtin, a value that isn't a
 -- closure) is returned as it is, which is always correct, since a
--- specialized closure means the same as the closure it was made from.
+-- specialized closure means the same as the closure it was made from. The
+-- closure is also returned as it is when the partial evaluator gives up.
 --
 -- The specialized closure is an ordinary closure over a generated group,
--- so equality, ordering and hashing are the existing ones. It holds the
--- arguments of the closure it was made from, in the same order, then any
--- constants the generated code needs: ANF has no node for an arbitrary
--- value, so a known value that isn't a literal is a parameter
+-- so equality, ordering, hashing and serialization are the existing ones.
+-- It holds the arguments of the closure it was made from, in the same
+-- order, then any constants the generated code needs: ANF has no node for
+-- an arbitrary value, so a known value that isn't a literal is a parameter
 -- (ANF.Specialize.threadConsts).
 --
--- The group's reference comes from a hash of the closure it was made from
--- ('specializedRef'), not of the generated code. So specializing the same
--- closure twice, in this process or another, gives equal closures, the
--- group is generated once, and the identity doesn't change when the
--- specializer does. If the partial evaluator gives up, the group is the
--- original lambda unchanged.
+-- The group's reference is a hash of the generated code, as
+-- @Code.validateLinks@ computes it ('hashedGroup'), and @Code.lookup@
+-- finds the group like any other loaded code, so another process gets it
+-- by the usual code sync.
+--
+-- 'specialized' remembers what was made of each closure, by a hash of the
+-- closure ('closureKey'), so specializing the same closure twice in this
+-- process does the work once and gives equal closures.
 --
 -- 'specializations' remembers, per generated group, the original
--- combinator and how many arguments its closure had. Reflection uses that
--- to write a specialized closure as 'ANF.Specialized' of the original
--- closure, since no codebase holds the generated code, and reading one
--- back specializes it again here ('reifyValue1'). The decompiler uses it
--- to show @specialize f x@.
+-- combinator and how many arguments its closure had, only for showing a
+-- specialized closure as @specialize f x@ (the decompiler, @runtime.ir@).
+-- Neither table leaves the process.
 specializeClosure :: CCache p -> Val -> IO Val
 specializeClosure cc val = case val of
   BoxedVal (PAp cix@(CIx r _ i) _ args)
@@ -2417,50 +2419,66 @@ specializeClosure cc val = case val of
         names <- readTVarIO (combNames cc)
         case M.lookup r groups >>= lambdaGroup (fromIntegral (i `shiftR` 16)) of
           Nothing -> pure val
-          Just identity -> do
-            sref <- specializedRef cc val
-            specs <- readTVarIO (specializations cc)
-            extras <- case M.lookup sref specs of
-              Just (_, _, extras, True) -> pure extras
-              -- the code is shared, but some constants were taken out of a
-              -- mutable value, so they are this closure's own: walked again,
-              -- with nothing loaded
-              Just (_, _, _, False) ->
-                either (const []) snd
-                  <$> SP.specializeLambda (specEnv cc groups names) (specLimits (M.lookup r groups) captured) r i captured
+          Just _ -> do
+            key <- closureKey cc val
+            remembered <- M.lookup key <$> readTVarIO (specialized cc)
+            let remember made = atomically . modifyTVar' (specialized cc) $ M.insert key made
+            made <- case remembered of
+              Just known -> pure (fmap (\(generated, extras) -> (generated, extras, False)) known)
               Nothing -> do
-                made <- SP.specializeLambda (specEnv cc groups names) (specLimits (M.lookup r groups) captured) r i captured
+                walked <- SP.specializeLambda (specEnv cc groups names) (specLimits (M.lookup r groups) captured) r i captured
                 when specializeDebug $ do
                   (runs, cut, failed, loads) <- readIORef knownCounts
                   ngroups <- M.size <$> readTVarIO (intermed cc)
                   hPutStrLn stderr ("[specialize] known code so far: " ++ show runs ++ " runs, " ++ show cut ++ " cut off by time, " ++ show failed ++ " failed, " ++ show loads ++ " terms loaded; " ++ show ngroups ++ " groups in the cache")
-                when specializeDebug $ case made of
-                  Left why -> hPutStrLn stderr ("[specialize] " ++ show r ++ ": gave up (" ++ why ++ "), keeping the original code")
-                  Right (g, cs) -> do
-                    hPutStrLn stderr ("[specialize] " ++ show r ++ ": " ++ show (length (ANF.group g)) ++ " residual functions")
-                    forM_ cs \c -> hPutStrLn stderr ("[specialize] constant: " ++ take 160 (drop 60 (show c)))
-                    hPutStrLn stderr (ANF.prettyGroup @Symbol (show sref) g "")
-                let (grp, extras) = either (const (identity, [])) id made
-                sands <- readTVarIO (sandbox cc)
-                let sand = M.findWithDefault mempty r sands
-                -- no profiler: the group is not a cached value, so loading it
-                -- runs nothing
-                unless (M.member sref groups) $
-                  cacheAdd0 S.empty [(sref, CodeRep grp Uncacheable)] [(sref, sand)] cc {profiler = ()}
-                atomically . modifyTVar' (specializations cc) $
-                  M.insert sref (cix, length captured, extras, not (any containsMutable extras))
-                pure extras
-            result <- mkClosure cc sref 0 (captured ++ extras)
-            -- whoever specializes expects the result to be hot: ask the JIT
-            -- for it now rather than after the call threshold (only in the
-            -- on mode: eager compiles it as it is loaded, and off never)
-            case result of
-              Just (BoxedVal (PAp scix (LamI _ _ _ cell) _))
-                | M.notMember sref specs,
-                  JIT.On <- JIT.mode (jitConfig (jit cc)) ->
-                    jitRequestGroup (jit cc) (sandboxed cc) (combs cc) (combRefs cc) scix cell
-              _ -> pure ()
-            pure (fromMaybe val result)
+                case walked of
+                  Left why -> do
+                    when specializeDebug $
+                      hPutStrLn stderr ("[specialize] " ++ show r ++ ": gave up (" ++ why ++ "), keeping the original closure")
+                    Nothing <$ remember Nothing
+                  Right (walkedGroup, extras) -> do
+                    let (generated, grp) = hashedGroup key walkedGroup
+                    when specializeDebug $ do
+                      hPutStrLn stderr ("[specialize] " ++ show r ++ ": " ++ show (length (ANF.group grp)) ++ " residual functions")
+                      forM_ extras \c -> hPutStrLn stderr ("[specialize] constant: " ++ take 160 (drop 60 (show c)))
+                      hPutStrLn stderr (ANF.prettyGroup @Symbol (show generated) grp "")
+                    -- read again: the walk may have specialized, and so
+                    -- loaded, other closures
+                    new <- M.notMember generated <$> readTVarIO (intermed cc)
+                    when new $ do
+                      sands <- readTVarIO (sandbox cc)
+                      let sand = M.findWithDefault mempty r sands
+                      -- no profiler: the group is not a cached value, so
+                      -- loading it runs nothing
+                      cacheAdd0 S.empty [(generated, CodeRep grp Uncacheable)] [(generated, sand)] cc {profiler = ()}
+                    -- only for a group loaded here: generated code that is
+                    -- the same as code already loaded (the function's own,
+                    -- when specializing changed nothing) has that code's
+                    -- reference, and is shown as that code. Two closures
+                    -- may generate the same code; the first is the one shown.
+                    when new . atomically . modifyTVar' (specializations cc) $
+                      M.insert generated (cix, length captured, length extras)
+                    -- constants taken out of a mutable value are this
+                    -- closure's own, though the key and the code are shared
+                    -- with closures holding other mutable values: not
+                    -- remembered, so each such closure is walked
+                    unless (any containsMutable extras) $ remember (Just (generated, extras))
+                    pure (Just (generated, extras, new))
+            case made of
+              Nothing -> pure val
+              Just (generated, extras, new) -> do
+                result <- mkClosure cc generated 0 (captured ++ extras)
+                -- whoever specializes expects the result to be hot: ask the
+                -- JIT for it now rather than after the call threshold (only
+                -- in the on mode: eager compiles it as it is loaded, and off
+                -- never)
+                case result of
+                  Just (BoxedVal (PAp scix (LamI _ _ _ cell) _))
+                    | new,
+                      JIT.On <- JIT.mode (jitConfig (jit cc)) ->
+                        jitRequestGroup (jit cc) (sandboxed cc) (combs cc) (combRefs cc) scix cell
+                  _ -> pure ()
+                pure (fromMaybe val result)
   _ -> pure val
   where
     -- the group with the lambda at index k (0 for the entry, k for the
@@ -2606,7 +2624,7 @@ runPrim cc p vs
         ANF.MKCB
       ]
 
--- | The reference of the group specializing a closure: a hash of the
+-- | The key 'specialized' remembers a closure by: a hash of the
 -- closure, as the value hash serializes it, under a prefix that keeps it
 -- apart from any codebase hash. A value that can't be serialized (a mutable
 -- reference, a handle) is hashed as a placeholder: the code doesn't depend
@@ -2614,8 +2632,8 @@ runPrim cc p vs
 -- ('runKnown'), and the closures still differ, each holding its own.
 -- A closure that can't be reflected for another reason gets a fresh
 -- reference.
-specializedRef :: CCache p -> Val -> IO Reference
-specializedRef cc val = do
+closureKey :: CCache p -> Val -> IO Reference
+closureKey cc val = do
   bytes <-
     -- (tryAny passes asynchronous exceptions on)
     UnliftIO.tryAny (reflectValueWith True cc val >>= evaluate . serializeValueForHash . dereference) >>= \case
@@ -2626,6 +2644,17 @@ specializedRef cc val = do
   let digest :: Digest Blake2b_256
       digest = hashlazy (BB.toLazyByteString (BB.string7 "unison specialize\0") <> bytes)
   pure $ Derived (Hash.fromByteString (convert digest)) 0
+
+-- | A generated group under the reference @Code.validateLinks@ computes
+-- for it: a hash of its code. The reference given is only a placeholder
+-- for the hashing, which wants one.
+hashedGroup :: Reference -> SuperGroup Reference Symbol -> (Reference, SuperGroup Reference Symbol)
+hashedGroup placeholder grp = case rehashGroups (M.singleton placeholder grp) of
+  Right (renamed, grps)
+    | Just generated <- M.lookup placeholder renamed,
+      Just hashed <- M.lookup generated grps ->
+        (generated, hashed)
+  _ -> (placeholder, grp)
 
 -- * Running known code
 
@@ -2675,7 +2704,7 @@ defaultKnownLimits = KnownLimits {knownFuel = 1000000, knownMicros = 200000}
 -- apply the result to the rest.
 runKnown :: CCache p -> KnownLimits -> Val -> [Val] -> IO (Maybe Val)
 runKnown cc lim f args
-  -- which mutable value it is mustn't shape the code (specializedRef)
+  -- which mutable value it is mustn't shape the code (closureKey)
   | any containsMutable (f : args) = pure Nothing
   | otherwise =
       knownRunnable cc (f : args) >>= \case
@@ -2892,7 +2921,7 @@ runtimeIR cc val = fmap (Util.Text.pack . ($ "")) $ case val of
     captured <- traverse reflectOrSay (segToList args)
     let comment = foldr (\l rest -> showString "-- " . showString l . showString "\n" . rest) id . lines
         origin = case M.lookup r specs of
-          Just (CIx o _ oi, _, _, _)
+          Just (CIx o _ oi, _, _)
             | Nothing <- irValue (irPrinter cc) val ->
                 showString "-- specialization of " . shows o . showString " " . shows oi . showString "\n"
           _ -> id
@@ -2934,7 +2963,7 @@ reflectValue = reflectValueWith False
 -- | Reflection, with each foreign value that can't be serialized (a mutable
 -- reference, a handle) written as one placeholder when the flag is set,
 -- rather than failing: for the reference of a specialization, whose code
--- doesn't depend on such values ('specializedRef').
+-- doesn't depend on such values ('closureKey').
 reflectValueWith :: Bool -> CCache p -> Val -> IO (Referenced ANF.Value)
 reflectValueWith placeholders env val = do
   cmbs <- readTVarIO (combs env)
@@ -2947,8 +2976,7 @@ reflectValueWith placeholders env val = do
   -- loads and serializes every stored continuation, could not name them)
   bns <- readTVarIO (baseNums env)
   let tmr' = tmr <> EC.mapFromList [(nb, r) | (n, nb) <- EC.mapToList bns, Just r <- [EC.lookup n tmr]]
-  specs <- readTVarIO (specializations env)
-  reflectValue0 placeholders cmbs bns tyr tmr' specs val
+  reflectValue0 placeholders cmbs bns tyr tmr' val
     `catch` \(ReflectExn problem) ->
       die [] $ err problem rendered
   where
@@ -3048,10 +3076,9 @@ reflectValue0 ::
   EnumMap Word64 Word64 ->
   EnumMap Word64 Reference ->
   EnumMap Word64 Reference ->
-  M.Map Reference (CombIx, Int, [Val], Bool) ->
   Val ->
   IO (Referenced ANF.Value)
-reflectValue0 placeholders cmbs bns rty rtm specs = goV0
+reflectValue0 placeholders cmbs bns rty rtm = goV0
   where
     goIx (CIx _ top i) = flip ANF.GR i <$> resolveTm rtm top
     layout = frameLayout cmbs
@@ -3078,16 +3105,6 @@ reflectValue0 placeholders cmbs bns rty rtm specs = goV0
       CharVal c -> pure . ANF.BLit $ ANF.Char c
       Val _ clos ->
         case clos of
-          -- a specialized closure is written as the closure it was made
-          -- from, which the receiver specializes again (CCache's
-          -- specializations)
-          PAp cix _rComb args
-            | Just (ocix, n, extras, _) <- M.lookup (combRef cix) specs ->
-                -- the closure's own arguments, without the constants the
-                -- generated code takes after them
-                let vs = segToList args
-                    own = take n vs ++ drop (n + length extras) vs
-                 in fmap ANF.Specialized . ANF.Partial <$> goIx ocix <*> traverse goV own
           PAp cix _rComb args ->
             ANF.Partial <$> goIx cix <*> goVs args
           Enum t
@@ -3216,21 +3233,17 @@ reifyValue cc val = do
         l -> pure (Left l)
   case erc of
     Left l -> pure (Left l)
-    Right rfs -> Right <$> reifyValue1 (specializeClosure cc) rfs val
+    Right rfs -> Right <$> reifyValue1 rfs val
 
--- The first argument specializes a closure ('specializeClosure'), for an
--- 'ANF.Specialized' value: a closure specialized in the process that wrote
--- the value, specialized again here.
 reifyValue1 ::
-  (Val -> IO Val) ->
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef, RecordFieldMappings, EnumMap Word64 Word64) ->
   Referenced ANF.Value ->
   IO Val
-reifyValue1 spec tup (Plain v) = reifyValue0 spec tup v
-reifyValue1 spec (combs, rty0, rtm0, rrLookup, rfms, bns) (WithRefs tys tms v) = do
+reifyValue1 tup (Plain v) = reifyValue0 tup v
+reifyValue1 (combs, rty0, rtm0, rrLookup, rfms, bns) (WithRefs tys tms v) = do
   let rty = HM.fromList . mapMaybe procTypeRefs $ zip [0 ..] tys
       rtm = HM.fromList . mapMaybe procTermRefs $ zip [0 ..] tms
-  reifyValue0Canon spec combs tys tms rty rtm rrLookup rfms bns v
+  reifyValue0Canon combs tys tms rty rtm rrLookup rfms bns v
   where
     procTypeRefs (i, r) = (RefNum i,) <$> M.lookup r rty0
     procTermRefs (i, r) =
@@ -3238,7 +3251,6 @@ reifyValue1 spec (combs, rty0, rtm0, rrLookup, rfms, bns) (WithRefs tys tms v) =
         <$> M.lookup (M.findWithDefault r r functionReplacements) rtm0
 
 reifyValue0Canon ::
-  (Val -> IO Val) ->
   EnumMap Word64 MCombs ->
   [Reference] ->
   [Reference] ->
@@ -3249,7 +3261,7 @@ reifyValue0Canon ::
   EnumMap Word64 Word64 ->
   ANF.Value RefNum ->
   IO Val
-reifyValue0Canon spec combs tys tms rty rtm rrLookup rfms bns = goV
+reifyValue0Canon combs tys tms rty rtm rrLookup rfms bns = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
 
@@ -3339,7 +3351,6 @@ reifyValue0Canon spec combs tys tms rty rtm rrLookup rfms bns = goV
           "a record of " ++ show (length vals) ++ " values for a schema of " ++ show (V.length (shapeFields shape)) ++ " fields"
       vals' <- goVs vals
       pure . boxedVal . RecordG shape $ recordVals vals'
-    goV (ANF.Specialized c) = goV c >>= spec
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs (widenCont (frameLayout combs) k' vs)
@@ -3403,11 +3414,10 @@ reifyValue0Canon spec combs tys tms rty rtm rrLookup rfms bns = goV
     goL (ANF.BigNat n) = pure $ encodeVal n
 
 reifyValue0 ::
-  (Val -> IO Val) ->
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef, RecordFieldMappings, EnumMap Word64 Word64) ->
   ANF.Value Reference ->
   IO Val
-reifyValue0 spec (combs, rty, rtm, rrLookup, rfms, bns) = goV
+reifyValue0 (combs, rty, rtm, rrLookup, rfms, bns) = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
     refTy r
@@ -3476,7 +3486,6 @@ reifyValue0 spec (combs, rty, rtm, rrLookup, rfms, bns) = goV
           "a record of " ++ show (length vals) ++ " values for a schema of " ++ show (V.length (shapeFields shape)) ++ " fields"
       vals' <- goVs vals
       pure . boxedVal . RecordG shape $ recordVals vals'
-    goV (ANF.Specialized c) = goV c >>= spec
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs (widenCont (frameLayout combs) k' vs)

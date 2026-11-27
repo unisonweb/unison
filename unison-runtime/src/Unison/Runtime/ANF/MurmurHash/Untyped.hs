@@ -104,8 +104,6 @@ hash64AddValue rs = \case
     hash64AddInt 5
       `combine` hash64AddFoldable (hash64AddText) recSchema
       `combine` hash64AddValues rs vs
-  Specialized v ->
-    hash64AddInt 6 `combine` hash64AddValue rs v
 
 hash64AddGroupRef :: HRefs r -> GroupRef r -> Hash64 -> Hash64
 hash64AddGroupRef rs (GR i k) =

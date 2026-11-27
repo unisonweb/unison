@@ -90,7 +90,8 @@ The result means the same as `f x`, whatever arity `f` has.
           42
 ```
 
-A specialized closure displays as `specialize f x`.
+A specialized closure displays as `specialize f x`. When specializing changes nothing, as with
+one argument of `plus3`, the result is the closure it was given.
 
 ``` unison
 > specialize plus3 1
@@ -104,21 +105,20 @@ A specialized closure displays as `specialize f x`.
 
     1 | > specialize plus3 1
           ⧩
-          specialize (a b c -> a Nat.+ b Nat.+ c) 1
+          b -> (Nat.+) (1 Nat.+ b)
 
     2 | > specialize (specialize plus3 1) 2
           ⧩
-          specialize
-            (specialize (a b c -> a Nat.+ b Nat.+ c) 1) 2
+          specialize (b c -> 1 Nat.+ b Nat.+ c) 2
 ```
 
 Specializing the same closure twice gives equal values. A specialized closure need not equal
 the closure it was made from.
 
 ``` unison
-> (Universal.==) (specialize plus3 1) (specialize plus3 1)
-> (Universal.==) (specialize plus3 1) (plus3 1)
-> (Universal.==) (specialize plus3 1) (specialize plus3 2)
+> (Universal.==) (specialize (plus3 1) 2) (specialize (plus3 1) 2)
+> (Universal.==) (specialize (plus3 1) 2) (plus3 1 2)
+> (Universal.==) (specialize (plus3 1) 2) (specialize (plus3 1) 3)
 ```
 
 ``` ucm :added-by-ucm
@@ -126,15 +126,15 @@ the closure it was made from.
 
   No changes found.
 
-    1 | > (Universal.==) (specialize plus3 1) (specialize plus3 1)
+    1 | > (Universal.==) (specialize (plus3 1) 2) (specialize (plus3 1) 2)
           ⧩
           true
 
-    2 | > (Universal.==) (specialize plus3 1) (plus3 1)
+    2 | > (Universal.==) (specialize (plus3 1) 2) (plus3 1 2)
           ⧩
           false
 
-    3 | > (Universal.==) (specialize plus3 1) (specialize plus3 2)
+    3 | > (Universal.==) (specialize (plus3 1) 2) (specialize (plus3 1) 3)
           ⧩
           false
 ```
@@ -158,16 +158,16 @@ the closure it returns is then specialized.
           ([5], (6, 7))
 ```
 
-A specialized closure survives serialization: it is written as the closure it was made from,
-in version 5 of the value format, and loads back as the same specialized closure.
+A specialized closure survives serialization: it is written as it is, a closure of the
+generated function, and loads back as the same closure.
 
 ``` unison
 main : '{IO, Exception} (Nat, Boolean, Boolean)
 main = do
-  g = specialize plus3 1
+  g = specialize (plus3 1) 2
   h = roundTrip g
-  sameBytes = (Universal.==) (Value.serialize (Value.value g)) (Value.serialize (Value.value (plus3 1)))
-  (h 2 3, (Universal.==) h g, sameBytes)
+  sameBytes = (Universal.==) (Value.serialize (Value.value g)) (Value.serialize (Value.value (plus3 1 2)))
+  (h 3, (Universal.==) h g, sameBytes)
 ```
 
 ``` ucm :added-by-ucm
@@ -298,7 +298,7 @@ scratch/main> add
           ⧩
           """
           -- specialize power 3
-          power.specialized#utqafuleos n x =
+          power.specialized#013qo80bla n x =
             lit = 1
             v1 = x Nat.* lit
             v2 = x Nat.* v1
@@ -374,7 +374,7 @@ An expression with no calls becomes straight-line code:
           ⧩
           """
           -- specialize (eval []) (Add (Mul Arg Arg) (Num 1))
-          eval.specialized#s7tck5o8q1 prog e x =
+          eval.specialized#01nuhna3f0 prog e x =
             v1 = x Nat.* x
             lit = 1
             v1 Nat.+ lit
@@ -402,7 +402,7 @@ A recursive program becomes a recursive function, with no trace of the interpret
           """
           -- specialize
           --   (eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]) (Call 0 Arg)
-          eval.specialized#he1qjbhhqu prog e x =
+          eval.specialized#00ckad2hg8 prog e x =
             eval' x1 =
               lit = 0
               v1 = Nat.eq x1 lit
@@ -479,7 +479,7 @@ scratch/main> add
           --         []        -> acc
           --         x +: rest -> go (acc :+ f x) rest
           --       go [] xs) (x -> x Nat.* 2 Nat.+ 1)
-          map.specialized#gj43ai3imv f c c1 xs =
+          map.specialized#00g26h5e9a f c c1 xs =
             map$go' acc x1 =
               v5 = ##List.viewl x1
               match v5 with
@@ -511,7 +511,7 @@ scratch/main> add
           ⧩
           """
           -- specialize foldLeft (Nat.+)
-          foldLeft.specialized#m3rbk3p595 f z x1 =
+          foldLeft.specialized#02fbsbgrri f z x1 =
             foldLeft' z1 x2 =
               v1 = ##List.viewl x2
               match v1 with
@@ -587,7 +587,7 @@ scratch/main> add
           -- specialize
           --   (prog x -> evalK prog (Call 0 Arg) x (v -> v))
           --   [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
-          runK.specialized#2qmmp45ssf prog x =
+          runK.specialized#004t8k4thn prog x =
             evalK$Lambda2$Lambda0' va vb = va Nat.* vb
             evalK$Lambda4' general va1 va2 =
               lit5 = 0
@@ -686,7 +686,7 @@ scratch/main> add
           ⧩
           """
           -- specialize (s x -> x Nat.+ (runSt s do count 4)) 2
-          #mrq1ud2rn1$Lambda0.specialized#6patbfbgl6 s x =
+          #mrq1ud2rn1$Lambda0.specialized#002louq3mv s x =
             lit = 12
             x Nat.+ lit
           """
@@ -778,7 +778,7 @@ scratch/main> add
           --       { a }            -> Some a
           --       { abort _ -> _ } -> None))
           --   [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
-          runA.specialized#0nklekfqfs prog x =
+          runA.specialized#00in8j2jbd prog x =
             evalA' x1 =
               lit = 0
               v1 = Nat.eq x1 lit
@@ -871,7 +871,7 @@ scratch/main> add
           --       put (get + n)
           --       put (get * 2)
           --       get) 1
-          stF.specialized#k8ughu55rj s n =
+          stF.specialized#011mteho2m s n =
             v1 = s Nat.+ n
             lit = 2
             v1 Nat.* lit
@@ -930,7 +930,7 @@ scratch/main> add
           --     with cases
           --       { a }            -> Some a
           --       { abort _ -> _ } -> None)) [Sub (Mul Arg Arg) (Num 10)]
-          runA.specialized#576qjmjsg7 prog x =
+          runA.specialized#00249ul9o2 prog x =
             va = x Nat.* x
             lit = 10
             v1 = Nat.lt va lit
@@ -963,7 +963,7 @@ Around a loop, the state is passed to the loop and returned from it:
           ⧩
           """
           -- specialize (s n -> runSt s do count n) 0
-          #v2hffo3dsr$Lambda0.specialized#8bdou15p4k s n =
+          #v2hffo3dsr$Lambda0.specialized#01dbee1gph s n =
             count' n1 v4 =
               lit2 = 0
               v5 = Nat.eq n1 lit2
@@ -1025,7 +1025,7 @@ has no such bridge, and stays as it is around its body:
           --       use St get
           --       put (f get)
           --       get) 3
-          #805euaakek$Lambda0.specialized#aqe3doh5bf s f =
+          #805euaakek$Lambda0.specialized#01gc4o5f2p s f =
             bridge' general request =
               match request with
                 {St.get} ->
@@ -1245,7 +1245,7 @@ scratch/main> add
           ⧩
           """
           -- specialize (z n -> runTick do ticks (z Nat.+ n)) 0
-          #18bmpic1u7$Lambda0.specialized#h48da7gja7 z n =
+          #18bmpic1u7$Lambda0.specialized#01m43b0094 z n =
             resume r =
               lit = 0
               (lit, r)
@@ -1282,7 +1282,7 @@ scratch/main> add
           ⧩
           """
           -- specialize (z n -> allOf do coins z n) 0
-          #tcplhuh687$Lambda0.specialized#4laqa1niau z n =
+          #tcplhuh687$Lambda0.specialized#00ds2apkr1 z n =
             resume z n r2 =
               match r2 with
                 false ->
@@ -1416,7 +1416,7 @@ scratch/main> add
           ⧩
           """
           -- specialize (z n -> allOf do twoFlips (z Nat.+ n)) 0
-          #cr8qmekkbm$Lambda0.specialized#eealnqaafh z n =
+          #cr8qmekkbm$Lambda0.specialized#03ojsrodg9 z n =
             resume v1 r2 =
               match r2 with
                 false ->

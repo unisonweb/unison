@@ -209,15 +209,17 @@ data CCache prof = CCache
     -- rewrote (MCode.emitCombs): what a continuation from another process
     -- resumes (reifyValue), never compiled, so not in combRefs
     baseNums :: TVar (EnumMap Word64 Word64),
+    -- what @specialize@ made of each closure, by a hash of the closure
+    -- (Machine.closureKey): the generated group's reference and the
+    -- constants its code takes after the closure's own arguments, or
+    -- Nothing when the specializer gave up (Machine.specializeClosure)
+    specialized :: TVar (M.Map Reference (Maybe (Reference, [Val]))),
     -- each group @specialize@ generated, by reference: the combinator of
     -- the closure it was made from, how many arguments that closure had,
-    -- which are the first arguments of the specialized closure, the
-    -- constants the generated code takes after them, and whether those
-    -- can be reused for another closure the reference stands for (not when
-    -- one holds a mutable value, Machine.specializedRef)
-    -- (Machine.specializeClosure). Reflection writes a specialized closure
-    -- as the closure it was made from ('ANF.Specialized').
-    specializations :: TVar (M.Map Reference (CombIx, Int, [Val], Bool)),
+    -- which are the first arguments of the specialized closure, and how
+    -- many constants follow them. Only for showing a specialized closure
+    -- as @specialize f x@.
+    specializations :: TVar (M.Map Reference (CombIx, Int, Int)),
     -- whether the code of a reference may run while specializing: it reaches
     -- no builtin that can do IO or touch mutable state (Machine.knownRunnable)
     runnableRefs :: TVar (M.Map Reference Bool),
@@ -281,6 +283,7 @@ baseCCache jit sandboxed = do
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
+    <*> newTVarIO mempty
     <*> newTVarIO mempty
     <*> newTVarIO mempty
     <*> newTVarIO mempty

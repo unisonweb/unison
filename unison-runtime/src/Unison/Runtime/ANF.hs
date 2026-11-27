@@ -73,7 +73,6 @@ module Unison.Runtime.ANF
     valueTermLinks,
     collectValueLinks,
     valueLinks,
-    hasSpecialized,
     groupTermLinks,
     replaceConstructors,
     replaceFunctions,
@@ -999,10 +998,6 @@ data Value ref
   | Record RecordSchema (ValList ref)
   | Cont (ValList ref) (Cont ref)
   | BLit (BLit ref)
-  | -- | @specialize@ applied to a closure: the closure (a 'Partial') as it
-    -- was before specialization, which the receiver specializes again
-    -- (Unison.Runtime.Machine.specializeClosure)
-    Specialized (Value ref)
   deriving (Show, Eq)
 
 -- Since we can now track cacheability of supergroups, this type
@@ -1108,7 +1103,6 @@ valueLinks f = go
     go (Cont vs k) = foldMap go vs <> contLinks f k
     go (BLit l) = blitLinks f l
     go (Record _rs vs) = foldMap go vs
-    go (Specialized v) = go v
 {-# INLINE valueLinks #-}
 
 -- Traversals of _all_ references in a `Value`, for e.g.
@@ -1123,7 +1117,6 @@ instance Referential Value where
       Cont (fmap (overRefs h) vs) (overRefs h k)
     BLit l -> BLit (overRefs h l)
     Record rs vs -> Record rs (fmap (overRefs h) vs)
-    Specialized v -> Specialized (overRefs h v)
 
   foldMapRefs h = \case
     Partial (GR r _) vs -> h False r <> foldMap (foldMapRefs h) vs
@@ -1131,7 +1124,6 @@ instance Referential Value where
     Cont vs k -> foldMap (foldMapRefs h) vs <> foldMapRefs h k
     BLit l -> foldMapRefs h l
     Record _rs vs -> foldMap (foldMapRefs h) vs
-    Specialized v -> foldMapRefs h v
 
   traverseRefs h = \case
     Partial gr vs ->
@@ -1148,30 +1140,6 @@ instance Referential Value where
         <*> traverseRefs h k
     BLit l -> BLit <$> traverseRefs h l
     Record rs vs -> Record rs <$> traverse (traverseRefs h) vs
-    Specialized v -> Specialized <$> traverseRefs h v
-
--- | Whether a value holds a specialized closure anywhere, which only
--- version 5 of the value format can carry (Unison.Runtime.ANF.Serialize).
-hasSpecialized :: Value ref -> Bool
-hasSpecialized = go
-  where
-    go = \case
-      Specialized _ -> True
-      Partial _ vs -> any go vs
-      Data _ _ vs -> any go vs
-      Record _ vs -> any go vs
-      Cont vs k -> any go vs || goK k
-      BLit l -> goL l
-    goK = \case
-      KE -> False
-      Mark _ _ ds k -> any (go . snd) ds || goK k
-      Push _ _ _ k -> goK k
-    goL = \case
-      List vs -> any go vs
-      Arr vs -> any go vs
-      Map kvs -> any (\(k, v) -> go k || go v) kvs
-      Quote v -> go v
-      _ -> False
 
 contLinks :: (Monoid a) => (Bool -> ref -> a) -> Cont ref -> a
 contLinks f = go
