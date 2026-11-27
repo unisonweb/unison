@@ -7,6 +7,10 @@ folded in, but it behaves the same. See `unison-runtime/src/Unison/Runtime/ANF/S
 scratch/main> builtins.merge lib.builtins
 
   Done.
+
+scratch/main> move lib.builtins.Nat.drop lib.builtins.Nat.-
+
+  Done.
 ```
 
 ``` unison
@@ -260,7 +264,7 @@ Specializing folds in what is known. `power 3` unrolls:
 
 ``` unison
 power : Nat -> Nat -> Nat
-power n x = if Nat.eq n 0 then 1 else x Nat.* power (Nat.drop n 1) x
+power n x = if Nat.eq n 0 then 1 else x Nat.* power (n Nat.- 1) x
 ```
 
 ``` ucm :added-by-ucm
@@ -319,7 +323,7 @@ eval prog e x = match e with
   Num n        -> n
   Arg          -> x
   Add a b      -> eval prog a x Nat.+ eval prog b x
-  Sub a b      -> Nat.drop (eval prog a x) (eval prog b x)
+  Sub a b      -> eval prog a x Nat.- eval prog b x
   Mul a b      -> eval prog a x Nat.* eval prog b x
   IfZero c t f -> if Nat.eq (eval prog c x) 0 then eval prog t x else eval prog f x
   Call i a     -> match List.at i prog with
@@ -409,7 +413,7 @@ A recursive program becomes a recursive function, with no trace of the interpret
               match v1 with
                 false ->
                   lit1 = 1
-                  v2 = Nat.drop x1 lit1
+                  v2 = x1 Nat.- lit1
                   v3 = eval' v2
                   x1 Nat.* v3
                 _ -> 1
@@ -534,7 +538,7 @@ evalK prog e x k = match e with
   Num n        -> k n
   Arg          -> k x
   Add a b      -> evalK prog a x (va -> evalK prog b x (vb -> k (va Nat.+ vb)))
-  Sub a b      -> evalK prog a x (va -> evalK prog b x (vb -> k (Nat.drop va vb)))
+  Sub a b      -> evalK prog a x (va -> evalK prog b x (vb -> k (va Nat.- vb)))
   Mul a b      -> evalK prog a x (va -> evalK prog b x (vb -> k (va Nat.* vb)))
   IfZero c t f -> evalK prog c x (vc -> if Nat.eq vc 0 then evalK prog t x k else evalK prog f x k)
   Call i a     -> match List.at i prog with
@@ -595,7 +599,7 @@ scratch/main> add
               match v5 with
                 false ->
                   lit6 = 1
-                  v6 = Nat.drop va2 lit6
+                  v6 = va2 Nat.- lit6
                   clo1 = partialApply evalK$Lambda2$Lambda0 general va1
                   evalK$Lambda4' clo1 va2 v6
                 _ ->
@@ -607,13 +611,13 @@ scratch/main> add
             match v1 with
               false ->
                 lit1 = 1
-                v2 = Nat.drop x lit1
+                v2 = x Nat.- lit1
                 lit2 = 0
                 v3 = Nat.eq v2 lit2
                 match v3 with
                   false ->
                     lit3 = 1
-                    v4 = Nat.drop v2 lit3
+                    v4 = v2 Nat.- lit3
                     clo = partialApply evalK$Lambda2$Lambda0' x
                     evalK$Lambda4' clo v2 v4
                   _ ->
@@ -644,7 +648,7 @@ runSt s p =
 count : Nat ->{St} Nat
 count n = if Nat.eq n 0 then St.get else
   St.put (St.get Nat.+ n)
-  count (Nat.drop n 1)
+  count (n Nat.- 1)
 ```
 
 ``` ucm :added-by-ucm
@@ -712,7 +716,7 @@ evalA prog e x = match e with
   Sub a b      ->
     va = evalA prog a x
     vb = evalA prog b x
-    if Nat.lt va vb then Abort.abort va else Nat.drop va vb
+    if Nat.lt va vb then Abort.abort va else va Nat.- vb
   Mul a b      -> evalA prog a x Nat.* evalA prog b x
   IfZero c t f -> if Nat.eq (evalA prog c x) 0 then evalA prog t x else evalA prog f x
   Call i a     -> match List.at i prog with
@@ -789,7 +793,7 @@ scratch/main> add
                   match v2 with
                     false ->
                       lit2 = 1
-                      r2 = Nat.drop x1 lit2
+                      r2 = x1 Nat.- lit2
                       r3 = evalA' r2
                       match r3 with
                         Right p1 ->
@@ -937,7 +941,7 @@ scratch/main> add
             match v1 with
               false ->
                 lit1 = 10
-                r = Nat.drop va lit1
+                r = va Nat.- lit1
                 Some r
               _ -> None
           """
@@ -971,7 +975,7 @@ Around a loop, the state is passed to the loop and returned from it:
                 false ->
                   v6 = v4 Nat.+ n1
                   lit3 = 1
-                  v7 = Nat.drop n1 lit3
+                  v7 = n1 Nat.- lit3
                   count' v7 v6
                 _ ->
                   p1 = (v4, v4)
@@ -982,7 +986,7 @@ Around a loop, the state is passed to the loop and returned from it:
               false ->
                 v2 = s Nat.+ n
                 lit1 = 1
-                v3 = Nat.drop n lit1
+                v3 = n Nat.- lit1
                 r = count' v3 v2
                 match r with
                   Right p ->
@@ -1072,7 +1076,7 @@ optA p = handle p () with cases
 sumCalls : (Nat ->{St} Nat) -> Nat -> Nat ->{St} Nat
 sumCalls f i acc = if Nat.eq i 0 then acc Nat.+ St.get else
   St.put (St.get Nat.+ 1)
-  sumCalls f (Nat.drop i 1) (acc Nat.+ f i)
+  sumCalls f (i Nat.- 1) (acc Nat.+ f i)
 
 viaAbort : () -> (Nat ->{Abort} Nat) -> Optional Nat
 viaAbort u f = optA do f 1 Nat.+ 1
@@ -1128,7 +1132,7 @@ runSt2 s p =
 count7 : Nat ->{St} Nat
 count7 n = if Nat.eq n 0 then 7 else
   St.put (St.get Nat.+ n)
-  count7 (Nat.drop n 1)
+  count7 (n Nat.- 1)
 ```
 
 ``` ucm :added-by-ucm
@@ -1183,7 +1187,7 @@ runTick p =
 ticks : Nat ->{Tick} Nat
 ticks n = if Nat.eq n 0 then 0 else
   tick
-  ticks (Nat.drop n 1) Nat.+ n
+  ticks (n Nat.- 1) Nat.+ n
 
 ability Flip where
   flip : Boolean
@@ -1195,7 +1199,7 @@ allOf p = handle p () with cases
 
 coins : Nat -> Nat ->{Flip} Nat
 coins acc n = if Nat.eq n 0 then acc else
-  coins (if flip then acc Nat.+ n else acc) (Nat.drop n 1)
+  coins (if flip then acc Nat.+ n else acc) (n Nat.- 1)
 ```
 
 ``` ucm :added-by-ucm
@@ -1255,7 +1259,7 @@ scratch/main> add
               match v2 with
                 false ->
                   lit2 = 1
-                  v3 = Nat.drop n1 lit2
+                  v3 = n1 Nat.- lit2
                   k2 = partialApply resume1 n1 k1
                   r1 = ticks' v3 k2
                   match r1 with
@@ -1287,7 +1291,7 @@ scratch/main> add
               match r2 with
                 false ->
                   lit1 = 1
-                  v2 = Nat.drop n lit1
+                  v2 = n Nat.- lit1
                   k = partialApply resume1
                   lit2 = 0
                   v3 = Nat.eq v2 lit2
@@ -1302,7 +1306,7 @@ scratch/main> add
                 _ ->
                   r5 = z Nat.+ n
                   lit3 = 1
-                  v4 = Nat.drop n lit3
+                  v4 = n Nat.- lit3
                   k1 = partialApply resume1
                   lit4 = 0
                   v5 = Nat.eq v4 lit4
@@ -1320,7 +1324,7 @@ scratch/main> add
               match r9 with
                 false ->
                   lit5 = 1
-                  v6 = Nat.drop n1 lit5
+                  v6 = n1 Nat.- lit5
                   lit2 = 0
                   v3 = Nat.eq v6 lit2
                   match v3 with
@@ -1334,7 +1338,7 @@ scratch/main> add
                 _ ->
                   r10 = acc Nat.+ n1
                   lit6 = 1
-                  v7 = Nat.drop n1 lit6
+                  v7 = n1 Nat.- lit6
                   lit7 = 0
                   v8 = Nat.eq v7 lit7
                   match v8 with
@@ -1469,7 +1473,7 @@ pairPlus p n = match p with (r, k) -> Ref.read r Nat.+ k Nat.+ n
 specializeMany : Nat -> Ref {IO} Nat -> ()
 specializeMany i r = if Nat.eq i 0 then () else
   _ = specialize readPlus r
-  specializeMany (Nat.drop i 1) r
+  specializeMany (i Nat.- 1) r
 
 mutableCases : '{IO, Exception} (Nat, Nat, Boolean, Boolean, Nat, Nat)
 mutableCases = do

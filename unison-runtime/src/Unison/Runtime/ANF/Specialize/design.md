@@ -538,21 +538,21 @@ runTick p =
   go = cases
     { a } -> (0, a)
     { tick -> k } -> match handle k () with go with
-      (n, a) -> (n Nat.+ 1, a)
+      (n, a) -> (n + 1, a)
   handle p () with go
 
 ticks : Nat ->{Tick} Nat
-ticks n = if Nat.eq n 0 then 0 else
+ticks n = if n == 0 then 0 else
   tick
-  ticks (Nat.drop n 1) Nat.+ n
+  ticks (n - 1) + n
 ```
 
-For such a handler, the loop's residual function takes the rest of its caller's block as a function parameter, and returns the value of the whole `handle`. This is the loop's part of `runtime.ir (specialize (z n -> runTick do ticks (z Nat.+ n)) 0)`:
+For such a handler, the loop's residual function takes the rest of its caller's block as a function parameter, and returns the value of the whole `handle`. This is the loop's part of `runtime.ir (specialize (z n -> runTick do ticks (z + n)) 0)`:
 
 ```
 ticks' n1 k1 =
   lit1 = 0
-  v2 = Nat.eq n1 lit1
+  v2 = n1 == lit1
   match v2 with
     false ->
       lit2 = 1
