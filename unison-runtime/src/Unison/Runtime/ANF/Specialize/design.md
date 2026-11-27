@@ -347,25 +347,14 @@ The whistle is a heuristic, so hard limits back it up: steps of the partial eval
 
 ## What runs at specialization time
 
-When everything a piece of code needs is known, the specializer does not walk it. It runs it on the real interpreter.
+When everything a piece of code needs is known, the specializer does not walk it. It runs it on the real interpreter, which ensures the evaluator has full coverage of the language, and the interpreter is also more efficient at running code than the partial evaluator.
 
 ```haskell
 -- A term whose free variables are all known, run on the interpreter.
 runIfKnown :: SpecEnv -> E -> Term -> M (Maybe Val)
 ```
 
-The check is cheap when the answer is no, which is the case where the walk goes on into the term and may ask again about each part of it:
-
-- The environment keeps the set of its variables that aren't fully known (`eUnknown`). The test is whether that set and the term's free variables, which every term caches, have anything in common. `Set.disjoint` stops at the first variable they share and takes at most about the size of the smaller set.
-- Whether one value is fully known is a constant-time question (`fullyKnown`). A constructor or closure records it when it is made, from the same answer for each of its parts.
-- Known values are built for the interpreter only once the test has passed.
-
-The same applies to a call whose function and arguments are all known. This matters for two reasons:
-
-- **Coverage.** The walker models a subset of the language precisely. The interpreter implements all of it, including every builtin and every kind of handler. Known code that the walker has no case for still gets evaluated.
-- **Speed.** Computing `List.at 3 prog` on known values by running the builtin is far cheaper than symbolically walking a library function.
-
-Running code during specialization must not move, repeat or drop the program's effects, so it is guarded:
+Running code during partial evaluation must not move, repeat or drop the program's effects, so it is guarded:
 
 - **Only pure code runs.** A run is refused if it would perform an effect or touch a mutable value (a `Ref`, an `MVar`, a handle). Those are treated as known but opaque: they can be passed around and stored, and every operation on them stays in the output.
 - **Runs are bounded in time.** A known computation that would not finish is cut off, and the code stays in the output for run time to deal with.
@@ -403,7 +392,7 @@ So `runSt 2 do count 4` is 2 + 4 + 3 + 2 + 1 = 12.
 A `handle` block is specialized in one of three ways. They are tried in this order, and each is the fallback for the one before it:
 
 1. **Everything is known:** the block is run.
-2. **The handler is known:** the handler is removed from the output.
+2. **The handler is known:** the handler is specialized away in the output.
 3. **Otherwise:** the handler stays, and the code inside the block is specialized.
 
 The examples below take a `()` as their first argument, so that `specialize f ()` specializes `f` with nothing else known.
@@ -451,7 +440,7 @@ straight.specialized#mebq93d67m _ s n =
   v1 Nat.* lit
 ```
 
-No request, no continuation capture and no handler closure appear in it. The state has become an ordinary variable.
+Notice there are no requests, no continuation capture and no handler closures appearing anywhere here. The state has become an ordinary variable.
 
 Both of `runSt`'s cases resume with `handle k v with h'` as the last thing they do. A case can do two other things with its continuation `k`:
 
@@ -494,15 +483,15 @@ divs.specialized#k5df05hqsq _ a b =
     _ -> 0
 ```
 
-That is all there is to fusing when the block is straight-line code. Three things in a block need more: a loop, a match on an unknown value, and a call to an unknown function. Each has its own section below.
+That is all there is to fusing when the block that the handler surrounds is straight-line code. Three things need more: a loop, a match on an unknown value, and a call to an unknown function. Each has its own section below.
 
 ### A loop inside a fused handler
 
 Take `runSt s do count n` with `n` unknown. `count` recurses on an unknown `n`, so it can't be unfolded forever. As in [Recursion and termination](#recursion-and-termination), it has to become a residual function, `count'`, that calls itself.
 
-But `count'` makes `St.get` and `St.put` requests, and the output has no handler to send them to.
+But `count'` makes `St.get` and `St.put` requests, and the specialized code has no handler to send them to. So what happens to these requests?
 
-The handler in force is a closure, here `go s`. Call the values it holds, here `s`, the *handler's state*. The loop changes it on every round, and the caller needs to know what it is after the loop, to go on handling requests.
+The handler in force is a closure, here `go s`. We call the values it closes over, here `s`, the *handler's state*. The loop changes it on every round, and the caller needs to know what it is after the loop, to go on handling requests.
 
 So the residual function takes the handler's state as an extra parameter, and returns the state along with its result. This is `runtime.ir (specialize loop ())`, for `loop _ s n = runSt s do count n`:
 
@@ -592,7 +581,7 @@ resume1 n1 k1 r2 =
 
 ### A match on an unknown value inside a fused handler
 
-Take a block with an `if` on an unknown `b`, and more code after it:
+Consider a block with an `if` on an unknown `b`, and more code after it:
 
 ```unison
 joined _ s b n = runSt s do
@@ -636,7 +625,7 @@ An arm that doesn't reach the end (it aborts, say) doesn't call the join point.
 
 ### A call to an unknown function inside a fused handler: the bridge
 
-Take a block that calls an unknown function `f`:
+Consider a block that calls an unknown function `f`:
 
 ```unison
 viaU _ s f = runSt s do
@@ -695,7 +684,7 @@ A bridge can only be made for a handler whose cases resume as the last thing the
 
 When the handler isn't a known function, or fusing it doesn't work out (see [Failing safely](#failing-safely)), the `handle` stays in the output. It is an ordinary handler, installed at run time.
 
-The code inside the block is still partially evaluated as usual. The only difference is that an ability request in it is emitted as a request, and the handler handles it at run time.
+The code inside the handle block is still partially evaluated as usual. The only difference is that an ability request in it is emitted as a request, and the handler handles it at run time.
 
 Here is a handler like `runTick`, around a call to an unknown `f`. Its case does work after resuming, so there is no bridge, and the handler is kept:
 
@@ -746,7 +735,7 @@ This level alone is often enough. Take an interpreter whose `eval` calls `abort`
 
 ## Failing safely
 
-Fusing a handler is a bet that the walker will see every request made in the handler's scope. When it finds it cannot, it backs out. There are three levels of retreat, each smaller in scope than the next, and all of them produce correct code.
+Fusing a handler is a bet that the walker will see every request made in the handler's scope. When it finds it cannot, it backs out. There are three levels of retreat, each of which still produces correct code.
 
 ```haskell
 data Escape = Escape Int String   -- back to the fused handler with this number
@@ -757,7 +746,7 @@ data GiveUp = GiveUp String       -- abandon this specialization
 - **Retry with no fusion.** If the generated code exceeds its size budget with handlers fused, the whole specialization is redone once with every handler kept. Fused handlers are what copy code.
 - **`GiveUp`: return the original.** If a budget runs out anyway, `specialize f x` returns `f x` unchanged.
 
-The fused attempt, with its rollback:
+Here's what this looks like in code, with the rollback logic:
 
 ```haskell
 liftIO (try (runStateT attempt s0)) >>= \case
@@ -787,7 +776,7 @@ to `f x` and hash differently. Its identity is "`f` specialized on `x`".
 - **Serialization ships the original closure**, marked as specialized, because no codebase holds
   the generated code. Reading it back specializes it again, which gives the same identity. The
   mark needs version 5 of the value format, which `Value.serialize` uses only for a value that
-  holds a specialized closure.
+  holds a specialized closure. Todo: hmm, this decision seems wrong. It doesn't matter if the recipient codebase has the code, the code syncing protocol will sync anything missing.
 - **Mutable values are known but opaque.** A `Ref` or `MVar` in `x` is passed along and shared
   with `f x`, and every operation on it stays in the output. Closures that differ only in which
   mutable value they hold share the generated code.
@@ -803,7 +792,7 @@ See `specializeClosure` and `specializedRef` in [`Machine.hs`](../../Machine.hs)
   on. Use it for slow paths not worth copying into every specialization, for code that should be
   compiled once and shared, and to stop precomputation: `specialize.boundary (n -> List.range 0
   n) 1000000` stays a call instead of a million-element constant. Outside `specialize` it costs
-  nothing, since the ordinary optimizer inlines it away.
+  nothing, since the ordinary optimizer inlines it away. Todo: is this true?
 - **`runtime.ir v`** shows what the runtime runs for a value: for a closure, its captured values
   and its optimized code, with every generated function. Generated code keeps the program's
   variable names, and a residual function is named after the function it came from with a prime
@@ -816,7 +805,7 @@ See `specializeClosure` and `specializedRef` in [`Machine.hs`](../../Machine.hs)
   `UNISON_SPECIALIZE_BRIDGE=off` turn those two mechanisms off, to compare.
 
 Partial evaluation is only as good as the separation of known from unknown in the code being
-specialized:
+specialized. To get the best results:
 
 - Keep the program and the run-time data in separate arguments, or in a structure whose shape is
   known (an environment of known names and unknown values). Don't put them together in one opaque
@@ -844,6 +833,7 @@ specialized:
 - **Running known code.** `runKnown` in `Machine.hs` calls the interpreter on a fresh stack. It
   refuses code that can reach an IO builtin or an operation on mutable state, and bounds the run
   with fuel counted per call and a time limit.
+
 ## Testing
 
 The rule that `specialize f x` behaves as `f x` is directly testable, and the main test does exactly that on generated programs.
