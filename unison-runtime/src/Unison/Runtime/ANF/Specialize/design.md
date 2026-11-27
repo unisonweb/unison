@@ -284,10 +284,12 @@ Separately, there is a depth limit of 200 nested unfoldings. Past it, a call is 
 In the code, it is one test, in `call` in `Unison.Runtime.ANF.Specialize` (names simplified here):
 
 ```haskell
-if depth < limit && not (underUnknownMatch && looksLikeLoop)
+if depth < limit && not (underUnknownMatch && looksLikeLoop) && not foundToLoop
   then unfold
   else residualize
 ```
+
+`foundToLoop` covers a loop noticed late. When a call that is residualized turns out to be the same call as an unfolding still in progress around it, that unfolding was the loop's first round. The walk goes back to it, and from then on that call is residualized wherever it is met.
 
 ### Memoization: one function per key
 
