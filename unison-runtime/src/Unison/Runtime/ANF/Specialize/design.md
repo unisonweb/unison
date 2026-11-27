@@ -153,10 +153,10 @@ data Abs
   | Con Reference CTag [Abs]   -- a known constructor, fields partially known
   | Clo Fn [Abs]               -- a known function applied to partially known arguments
   | Dyn Symbol Mem             -- unknown: a variable of the residual program
-  | SReq Reference CTag [Abs] Int  -- a request being handled while specializing
-  | SPure Abs                      -- the value a fused handler's body finished with
-  | SKont Int                      -- the continuation of such a request
-  | SBridge Symbol Int             -- a request that isn't known (see the bridge)
+  | SReq Reference CTag [Abs] KontId  -- a request being handled while specializing
+  | SPure Abs                         -- the value a fused handler's body finished with
+  | SKont KontId                      -- the continuation of such a request
+  | SBridge Symbol FrameId            -- a request that isn't known (see the bridge)
 ```
 
 Let's look at the first four, recalling our simple `power` example:
@@ -202,12 +202,12 @@ data K
   = KBind Mem Symbol (Abs -> M Term)
       -- bind the result to a variable (a name hint and its
       -- representation), then run the rest of the walk
-  | KTail           -- nothing follows: the value is the code's result
-  | KDelim Int      -- the end of a fused handler's body
-  | KReturn Int     -- the end of a state-passing residual function
-  | KAbort Int Int  -- the value of a handler case that didn't resume, in such a function
-  | KEnd Int        -- the end of a value-returning residual function
-  | KOuter Int Mem  -- what follows a fused `handle`, by name
+  | KTail               -- nothing follows: the value is the code's result
+  | KDelim FrameId      -- the end of a fused handler's body
+  | KReturn FrameId     -- the end of a state-passing residual function
+  | KAbort FrameId Int  -- the value of a handler case that didn't resume, in such a function
+  | KEnd FrameId        -- the end of a value-returning residual function
+  | KOuter FrameId Mem  -- what follows a fused `handle`, by name
 ```
 
 - **`M`** is a state monad over `IO`: fresh names, the functions generated so far, budgets, and the handlers in force.
@@ -739,8 +739,8 @@ This level alone is often enough. Take an interpreter whose `eval` calls `abort`
 Fusing a handler is a bet that the walker will see every request made in the handler's scope. When it finds it cannot, it backs out. There are three levels of retreat, each of which still produces correct code.
 
 ```haskell
-data Escape = Escape Int String   -- back to the fused handler with this number
-data GiveUp = GiveUp String       -- abandon this specialization
+data Escape = Escape FrameId String   -- back to the fused handler with this number
+data GiveUp = GiveUp String           -- abandon this specialization
 ```
 
 - **`Escape`: keep one handler.** Something in a fused handler's scope could make its requests unseen: a closure escaping as a value, a builtin that calls back into Unison code, a case shape the bridge does not cover. The walker throws `Escape` to that handler's `handle`. The walk's state is rolled back to that point and the `handle` is redone as a kept handler (level 3 above). Everything outside it is unaffected, and other handlers stay fused.

@@ -7,11 +7,17 @@
 module Unison.Test.Runtime.Specialize where
 
 import Control.Monad (forM_)
+import Data.Map qualified as Map
+import Data.Text (Text)
 import EasyTest
+import Unison.ABT qualified as ABT
+import Unison.Builtin qualified as Builtin
+import Unison.Builtin.Decls qualified as DD
 import Unison.Reference (Reference, Reference' (Builtin))
 import Unison.Runtime.ANF (Cacheability (..), Code (..))
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Convert (lamLift, superNormalize)
+import Unison.Runtime.Builtin (baseSandboxInfo)
 import Unison.Runtime.JIT qualified as JIT
 import Unison.Runtime.Machine
   ( CCache,
@@ -21,11 +27,13 @@ import Unison.Runtime.Machine
     defaultKnownLimits,
     reifyValue,
     runKnown,
+    stateBuiltin,
   )
 import Unison.Runtime.Pattern (builtinDataSpec, splitPatterns)
 import Unison.Runtime.Referenced (Referenced (..))
 import Unison.Runtime.Stack (Val, pattern NatVal)
 import Unison.Term (unannotate)
+import Unison.Type qualified as Type
 import Unison.Test.Common (tm)
 
 -- | A fresh cache with each term loaded under its reference (and the
@@ -83,7 +91,10 @@ defs =
   ]
 
 test :: Test ()
-test =
+test = tests [runKnownTest, scope "specialize" refusedTest]
+
+runKnownTest :: Test ()
+runKnownTest =
   scope "specialize" . scope "runKnown" $ do
     cc <- io (load defs)
     let run r args = io do
@@ -108,3 +119,33 @@ test =
           expectNat r 3,
         scope "all the arguments give the result" $ run add2 [1, 2] >>= (`expectNat` 3)
       ]
+
+-- | The builtins whose type has an ability other than Exception, by the
+-- types the typechecker gives them (the runtime's own library can't see
+-- those types, so it keeps a list of its own: 'stateBuiltin' and the
+-- sandbox's).
+effectfulByType :: [Text]
+effectfulByType =
+  [name | (Builtin name, ty) <- Map.toList Builtin.termRefTypes, any effectful (ABT.subterms ty)]
+  where
+    effectful = \case
+      Type.Effects' es -> any (not . isException) es
+      _ -> False
+    isException = \case
+      Type.Ref' r -> r == DD.exceptionRef
+      _ -> False
+
+-- | Builtins whose type has an ability and that known code may use all
+-- the same, each with the reason.
+effectfulButRunnable :: [Text]
+effectfulButRunnable = []
+
+-- | A builtin that can do IO or touch mutable state must be one the
+-- runtime refuses to run while specializing. This fails when such a
+-- builtin is added and neither the sandbox nor 'stateBuiltin' knows it.
+refusedTest :: Test ()
+refusedTest =
+  scope "every builtin with an ability in its type is refused by known code" do
+    let refused r = Map.member r baseSandboxInfo || stateBuiltin r
+        missed = [n | n <- effectfulByType, not (refused (Builtin n)), n `notElem` effectfulButRunnable]
+    expectEqual [] missed

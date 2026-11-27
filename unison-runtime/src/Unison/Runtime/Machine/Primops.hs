@@ -501,12 +501,12 @@ tltt stk r =
 {-# INLINE tltt #-}
 
 dbtx :: CCache p -> Stack -> Val -> IO ()
-dbtx env stk val = writeBack stk traced
-  where
-    traced = case tracer env False val of
-      NoTrace -> Nothing
-      MsgTrace _ _ tx -> Just . Left $ UText.pack tx
-      SimpleTrace tx -> Just . Right $ UText.pack tx
+dbtx env stk val = do
+  specs <- readTVarIO (specializations env)
+  writeBack stk $ case tracer env specs False val of
+    NoTrace -> Nothing
+    MsgTrace _ _ tx -> Just . Left $ UText.pack tx
+    SimpleTrace tx -> Just . Right $ UText.pack tx
 {-# INLINE dbtx #-}
 
 addi :: Stack -> Int -> Int -> IO ()

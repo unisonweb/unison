@@ -425,6 +425,20 @@ jobs:
           grep -q ': compiling ' "$RUNNER_TEMP/jit.log" || { echo "::error::nothing was compiled"; exit 1; }
           diff --strip-trailing-cr "$RUNNER_TEMP/jit-tests.md" "$RUNNER_TEMP/jit-tests.output.md"
 
+      - name: the specialize transcripts, with the JIT on
+        # The transcripts job runs them with the JIT off. The differential
+        # test says what it found in what it prints, so that is compared
+        # with the file (the lines this runner spaces differently left
+        # out). specialize.md only has to succeed: the code `runtime.ir`
+        # shows differs under the JIT.
+        run: |
+          for t in specialize specialize-differential; do
+            cp "unison-src/transcripts/idempotent/$t.md" "$RUNNER_TEMP/$t.md"
+            UNISON_JIT=eager ${{env.ucm}} transcript "$RUNNER_TEMP/$t.md"
+          done
+          norm() { tr -d '\r' < "$1" | grep -v '^ *$' | grep -v "Okay, I'm searching the branch" | grep -v '^  updated\.\.\.$'; }
+          diff <(norm "$RUNNER_TEMP/specialize-differential.md") <(norm "$RUNNER_TEMP/specialize-differential.output.md")
+
       - name: bundles and unisonrt, with the JIT off and on
         # scripts/bundle-check.sh: compiles and bundles the programs of
         # unison-src/tests/bundle/programs.md on a copy of the codebase the

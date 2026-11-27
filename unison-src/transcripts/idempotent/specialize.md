@@ -310,6 +310,86 @@ scratch/main> add
           """
 ```
 
+A call made through `specialize.boundary` stays a call of the original function.
+`sumPowers` is specialized through its calls of `power`; `sumPowersKept` is unfolded
+the same way, but each `power` stays a call.
+
+``` unison
+sumPowers : Nat -> Nat -> Nat
+sumPowers n x = if Nat.eq n 0 then 0 else power n x + sumPowers (n Nat.- 1) x
+
+sumPowersKept : Nat -> Nat -> Nat
+sumPowersKept n x =
+  if Nat.eq n 0 then 0 else specialize.boundary (power n) x + sumPowersKept (n Nat.- 1) x
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + sumPowers     : Nat -> Nat -> Nat
+  + sumPowersKept : Nat -> Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` unison
+> specialize sumPowers 2 3
+> specialize sumPowersKept 2 3
+> runtime.ir (specialize sumPowers 2)
+> runtime.ir (specialize sumPowersKept 2)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > specialize sumPowers 2 3
+          ⧩
+          12
+
+    2 | > specialize sumPowersKept 2 3
+          ⧩
+          12
+
+    3 | > runtime.ir (specialize sumPowers 2)
+          ⧩
+          """
+          -- specialize sumPowers 2
+          sumPowers.specialized#00gupsuomo n x =
+            lit = 1
+            v1 = x Nat.* lit
+            v2 = x Nat.* v1
+            lit1 = 1
+            v3 = x Nat.* lit1
+            lit2 = 0
+            v4 = v3 Nat.+ lit2
+            v2 Nat.+ v4
+          """
+
+    4 | > runtime.ir (specialize sumPowersKept 2)
+          ⧩
+          """
+          -- specialize sumPowersKept 2
+          sumPowersKept.specialized#01sm17mhpm n x =
+            v1 = power n x
+            lit = 1
+            v2 = power lit x
+            lit1 = 0
+            v3 = v2 Nat.+ lit1
+            v1 Nat.+ v3
+          """
+```
+
 Specializing an interpreter on a program compiles the program (the first Futamura
 projection). Here is an interpreter for a small language of numbered functions of one
 argument:
@@ -690,7 +770,7 @@ scratch/main> add
           ⧩
           """
           -- specialize (s x -> x Nat.+ (runSt s do count 4)) 2
-          #mrq1ud2rn1$Lambda0.specialized#002louq3mv s x =
+          #2f8bhlj67u$Lambda0.specialized#002louq3mv s x =
             lit = 12
             x Nat.+ lit
           """
@@ -967,7 +1047,7 @@ Around a loop, the state is passed to the loop and returned from it:
           ⧩
           """
           -- specialize (s n -> runSt s do count n) 0
-          #v2hffo3dsr$Lambda0.specialized#01dbee1gph s n =
+          #ebblk9csf5$Lambda0.specialized#01dbee1gph s n =
             count' n1 v4 =
               lit2 = 0
               v5 = Nat.eq n1 lit2
@@ -1029,7 +1109,7 @@ has no such bridge, and stays as it is around its body:
           --       use St get
           --       put (f get)
           --       get) 3
-          #805euaakek$Lambda0.specialized#01gc4o5f2p s f =
+          #3g43jqq72r$Lambda0.specialized#02t02bvenp s f =
             bridge' general request =
               match request with
                 {St.get} ->
@@ -1249,7 +1329,7 @@ scratch/main> add
           ⧩
           """
           -- specialize (z n -> runTick do ticks (z Nat.+ n)) 0
-          #18bmpic1u7$Lambda0.specialized#01m43b0094 z n =
+          #uhua17h7qj$Lambda0.specialized#01m43b0094 z n =
             resume r =
               lit = 0
               (lit, r)
@@ -1286,7 +1366,7 @@ scratch/main> add
           ⧩
           """
           -- specialize (z n -> allOf do coins z n) 0
-          #tcplhuh687$Lambda0.specialized#00ds2apkr1 z n =
+          #2db5t71k7e$Lambda0.specialized#00ds2apkr1 z n =
             resume z n r2 =
               match r2 with
                 false ->
@@ -1420,7 +1500,7 @@ scratch/main> add
           ⧩
           """
           -- specialize (z n -> allOf do twoFlips (z Nat.+ n)) 0
-          #cr8qmekkbm$Lambda0.specialized#03ojsrodg9 z n =
+          #dhlrbln58n$Lambda1.specialized#03ojsrodg9 z n =
             resume v1 r2 =
               match r2 with
                 false ->

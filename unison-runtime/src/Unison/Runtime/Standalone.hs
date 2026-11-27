@@ -292,7 +292,7 @@ restoreCache debugText jit sandboxed (SCache cs crs bns cacheableCombs opt _ ftm
       combs :: EnumMap Word64 (RCombs Val)
       combs = resolveCombs Nothing unresolvedCombs
   cc <-
-    CCache sandboxed debugText plainIR ()
+    CCache sandboxed (const debugText) plainIR ()
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)

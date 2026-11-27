@@ -127,10 +127,40 @@ type Term = ANormal Reference Symbol
 data Fn = Fn !Reference !Word64
   deriving (Ord, Show)
 
--- | The index first: the functions compared are mostly of one group, and
--- equal references are compared hash against hash.
-instance Eq Fn where
-  Fn r i == Fn r' i' = i == i' && r == r'
+-- | The number of a handler in force ('Frame'), from 'sNextId'. A fused
+-- @handle@, the body of a residual function walked under fused handlers,
+-- and a bridge each get one (or one per handler they hold), and the
+-- continuations ('K') and tables ('S') that belong to one name it by it.
+newtype FrameId = FrameId Int
+  deriving (Eq, Ord, Show)
+
+-- | The frame this many after one, of frames numbered in a row: a
+-- residual function's body numbers the handlers it is passed that way.
+frameAfter :: FrameId -> Int -> FrameId
+frameAfter (FrameId n) i = FrameId (n + i)
+
+-- | How many frames after the second the first is.
+framesAfter :: FrameId -> FrameId -> Int
+framesAfter (FrameId n) (FrameId m) = n - m
+
+-- | The number of a continuation captured while specializing: its key in
+-- 'sKonts', from 'sNextId'.
+newtype KontId = KontId Int
+  deriving (Eq, Ord, Show)
+
+-- | Whether a continuation was captured after a frame was installed: the
+-- two are numbered from one counter.
+madeUnder :: KontId -> FrameId -> Bool
+madeUnder (KontId k) (FrameId f) = k > f
+
+-- | The number of a join point being made: its key in 'sJoins', from
+-- 'sNextId'.
+newtype JoinId = JoinId Int
+  deriving (Eq, Ord, Show)
+
+-- | The number of a call being unfolded ('eStack'), from 'sNextUnfold'.
+newtype UnfoldId = UnfoldId Int
+  deriving (Eq, Ord, Show)
 
 -- | What is known about a variable while specializing.
 data Abs
@@ -147,14 +177,14 @@ data Abs
     Dyn Symbol Mem
   | -- | a request handled while specializing (a fused handler's argument):
     -- the ability, the operation, its arguments and its continuation
-    SReq Reference CTag [Abs] Int
+    SReq Reference CTag [Abs] KontId
   | -- | the value a fused handler's body finished with, given to the handler
     SPure Abs
   | -- | the continuation of a request handled while specializing
-    SKont Int
+    SKont KontId
   | -- | the request a bridge's handler is given, unknown: its variable, and
-    -- the number of the bridge's frames ('bridgeFn')
-    SBridge Symbol Int
+    -- the bridge's frames ('bridgeFn')
+    SBridge Symbol FrameId
 
 pattern Con :: Reference -> CTag -> [Abs] -> Abs
 pattern Con r t fields <- Con_ _ r t fields
@@ -196,44 +226,18 @@ data Key = Key Int [Reference] Fn [KArg]
 fusedRefs :: [Frame] -> [Reference]
 fusedRefs frames = S.toList (S.fromList (concat [frRefs f | f <- frames, isFused f]))
 
+-- | What is known of one argument, as part of a 'Key': an 'Abs' with its
+-- variables forgotten, so that two calls knowing the same things have the
+-- same key. Its 'Eq' and 'Ord' compare known values by address first (the
+-- instances are at the end of the file).
 data KArg
   = KKnown Val
   | KCon Reference CTag [KArg]
   | KClo Fn [KArg]
   | KHole Mem
-  | -- | a continuation captured while specializing: code specialized on
-    -- one resumes that one
-    KKont Int
-
--- | Known values are compared by address before they are compared by
--- structure: the runtime's equality has no such shortcut, and nearly every
--- pair of equal known values met here is one value, a table of a program
--- or an interpreter's code, reached twice.
-instance Eq KArg where
-  a == b = case (a, b) of
-    (KKnown v, KKnown w) -> sameBoxed v w || v == w
-    (KCon r t xs, KCon r' t' ys) -> r == r' && t == t' && xs == ys
-    (KClo f xs, KClo g ys) -> f == g && xs == ys
-    (KHole m, KHole n) -> m == n
-    (KKont i, KKont j) -> i == j
-    _ -> False
-
-instance Ord KArg where
-  compare a b = case (a, b) of
-    (KKnown v, KKnown w) -> if sameBoxed v w then EQ else compare v w
-    (KCon r t xs, KCon r' t' ys) -> compare r r' <> compare t t' <> compare xs ys
-    (KClo f xs, KClo g ys) -> compare f g <> compare xs ys
-    (KHole m, KHole n) -> compare m n
-    (KKont i, KKont j) -> compare i j
-    _ -> compare (rank a) (rank b)
-    where
-      rank :: KArg -> Int
-      rank = \case
-        KKnown {} -> 0
-        KCon {} -> 1
-        KClo {} -> 2
-        KHole {} -> 3
-        KKont {} -> 4
+  | -- | a continuation captured while specializing ('sKonts'): code
+    -- specialized on one resumes that one
+    KKont KontId
 
 -- | Whether two values are one boxed value, by address. False for some
 -- that are (one not yet evaluated), never true for two that differ.
@@ -245,42 +249,35 @@ sameBoxed v w = case (v, w) of
 data GiveUp = GiveUp String
   deriving (Show)
 
-instance Exception GiveUp
-
 -- | The call being unfolded with this number is the start of a loop: a call
 -- inside it, of the same function with the same key, is about to become a
 -- call of a residual function. The unfolding is abandoned and the call is
 -- walked again as a call of that residual function, so that the loop's body
 -- is generated once, not once inline and once as the function. Carries the
 -- steps taken, which a rollback doesn't give back.
-data Redo = Redo Int Int
+data Redo = Redo UnfoldId Int
   deriving (Show)
-
-instance Exception Redo
 
 -- | Something in the scope of the fused handler with this number could
 -- perform its requests without the walk seeing them: the handler can't be
 -- fused, and its @handle@ is walked again, kept.
-data Escape = Escape Int String
+data Escape = Escape FrameId String
   deriving (Show)
-
-instance Exception Escape
 
 -- | The continuation with this number, of a request handled while
 -- specializing, is needed as more than the rest of the walk: resumed a
 -- second time, or used in another function. The walk goes back to the
 -- request and makes it a residual function ('request').
-newtype Reify = Reify Int
+newtype Reify = Reify KontId
   deriving (Show)
 
-instance Exception Reify
-
 -- | A handler in force over the code being walked: fused (handled while
--- specializing), or kept, a barrier to fused ones further out, since a
--- request can't be handled across it.
+-- specializing), or kept (left in the output as a real @handle@), which
+-- is a barrier to fused ones further out, since a request can't be
+-- handled across it ('withBarrier').
 data Frame
   = Fused
-      { frId :: !Int,
+      { frId :: !FrameId,
         frRefs :: [Reference],
         frHandler :: Abs,
         -- | where the @handle@'s value goes
@@ -297,7 +294,7 @@ data Frame
 -- | What a target is: a fused handler's pure case, the end of the body of a
 -- fused handler (a resumption as that body, which is how a case re-installs
 -- its handler), or any other site that resumed a continuation.
-data Tgt = TPure Int | TBody Int | TSite
+data Tgt = TPure FrameId | TBody FrameId | TSite
 
 -- | The continuation of a request handled while specializing: the rest of
 -- the walk from the request, and the frames and targets between it and the
@@ -306,7 +303,7 @@ data Kont = Kont
   { koRest :: Abs -> M Term,
     koFrames :: [Frame],
     koTargets :: [(Tgt, Abs -> M Term)],
-    koFrame :: !Int,
+    koFrame :: !FrameId,
     koUsed :: !Bool
   }
 
@@ -321,8 +318,24 @@ data Outside
   | -- | it runs on through them to the end of a value-returning function:
     -- the handlers with holes, their frames' numbers and where each
     -- returns, and where the handler of the request returned
-    ThroughOutside [Abs] [(Int, K)] K
+    ThroughOutside [Abs] [(FrameId, K)] K
 
+-- | The state of one specialization, threaded through the whole walk
+-- ('M'). It holds three kinds of thing:
+--
+-- * the output so far: the residual functions and constants made, the
+--   table that shares them by key, and counters for fresh names;
+-- * the limits and how much of them is used (steps, code emitted);
+-- * for handlers handled while specializing, what is in force at the
+--   point the walk has reached: the frames, where their bodies return to,
+--   and the continuations captured, with the tables that tie a residual
+--   function or a join point to the frames it was made under.
+--
+-- A walk that has to be abandoned ('Redo', 'Escape', 'Reify') puts back
+-- the state it started with. What must survive that is in an 'IORef'.
+--
+-- What is known of each variable is not here: it is in 'E', which is
+-- passed down and so follows scope.
 data S = S
   { sFresh :: !Word64,
     -- | the next number for an indirect let, per lambda
@@ -343,30 +356,30 @@ data S = S
     -- | where the bodies of fused handlers return to, innermost first: the
     -- handler's own pure case, or the site that resumed the body
     sTargets :: [(Tgt, Abs -> M Term)],
-    sKonts :: M.Map Int Kont,
+    sKonts :: M.Map KontId Kont,
     sNextId :: !Int,
     -- | the continuation a handler's case is about to capture with @shift@
-    sPending :: Maybe (Int, Reference),
+    sPending :: Maybe (KontId, Reference),
     -- | the abilities and the handler as passed, of each state-passing
     -- residual function being built, by the number of its frame
-    sReturns :: M.Map Int [Frame],
+    sReturns :: M.Map FrameId [Frame],
     -- | the continuation parameter and the frames at the start, of each
     -- value-returning residual function being built ('KEnd')
-    sEnds :: M.Map Int (Symbol, [Frame]),
+    sEnds :: M.Map FrameId (Symbol, [Frame]),
     -- | the lets and matches generated so far ('emitted')
     sEmitted :: !Int,
     -- | per join point being made, where arms reached the code after the
     -- match: the placeholder left there, the value, and the continuations
     -- resumed by then ('joined')
-    sJoins :: M.Map Int [(Symbol, Abs, [Int], [Abs])],
+    sJoins :: M.Map JoinId [(Symbol, Abs, [KontId], [Abs])],
     -- | what follows each fused @handle@, by the number of its first frame
     -- ('KOuter')
-    sOuters :: M.Map Int K,
+    sOuters :: M.Map FrameId K,
     -- | the continuations made residual functions ('request'): the
     -- function, its handler with holes where its parameters go, the
     -- abilities, and the frame that handled the request
     -- and what it does about the handlers outside that one
-    sReified :: M.Map Int (Symbol, Abs, [Reference], Int, Outside),
+    sReified :: M.Map KontId (Symbol, Abs, [Reference], FrameId, Outside),
     -- | the residual functions that are join points
     sJoinFns :: S.Set Symbol,
     -- | the functions whose loops under handlers of these abilities
@@ -379,13 +392,13 @@ data S = S
     -- | the continuations of the requests a bridge's handler is given
     -- ('bridgeFn'): the number of the bridge's frames, and the variable
     -- the real continuation is in once the case's shift is reached
-    sBridgeK :: M.Map Int (Int, Maybe Symbol),
+    sBridgeK :: M.Map KontId (FrameId, Maybe Symbol),
     -- | the bridge whose body has the frames with this number, and whether
     -- all of its handler's state is unknown in it ('bridgeFn')
-    sBridgeOf :: M.Map Int (Symbol, Bool),
+    sBridgeOf :: M.Map FrameId (Symbol, Bool),
     -- | the unfoldings the walk is inside of, by number, and the next
     -- number ('Redo')
-    sUnfolding :: S.Set Int,
+    sUnfolding :: S.Set UnfoldId,
     sNextUnfold :: !Int,
     -- | the calls found to start a loop ('Redo'): residual from the start
     -- when met again. Outside the state that a rollback restores, so that
@@ -408,7 +421,7 @@ data E = E
     -- with the key of its arguments: what the whistle looks at before
     -- unfolding another under an unknown match ('call'), and for 'Redo'
     -- the fused handlers it was under and its number
-    eStack :: [(Fn, [KArg], [KArg], Int)]
+    eStack :: [(Fn, [KArg], [KArg], UnfoldId)]
   }
 
 -- | Where a value goes: the tail of a residual function, or the rest of a
@@ -419,23 +432,23 @@ data K
     KBind Mem Symbol (Abs -> M Term)
   | -- | the end of the body of the fused handler with this number: the
     -- value goes to the innermost target ('sTargets')
-    KDelim Int
+    KDelim FrameId
   | -- | the end of the body of the state-passing residual function whose
     -- frame has this number: @Right (result, state)@ ('returnRight')
-    KReturn Int
+    KReturn FrameId
   | -- | the value of a case that didn't resume, in that function, of
     -- the handler it was passed at this place (0 the innermost): @Left@ of
     -- which handler and the value ('abortValue')
-    KAbort Int Int
+    KAbort FrameId Int
   | -- | the end of the body of the value-returning residual function with
     -- this number: its continuation parameter called with the value and
     -- the handler's state ('valueCall')
-    KEnd Int
+    KEnd FrameId
   | -- | what follows the @handle@ first fused as the frame with this
     -- number ('sOuters'), named so that two handlers can be seen to return
     -- to the same place: a case that re-installs its handler as its last
     -- act gives the new one this same continuation
-    KOuter Int Mem
+    KOuter FrameId Mem
 
 -- | The specialization of the lambda at an index of a group, on its first
 -- arguments: a group whose entry takes those arguments, then the extra
@@ -488,9 +501,9 @@ specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
                               ++ zip (drop (length args) vs) (zipWith Dyn restSyms restMems)
                           -- the entry is the first call being unfolded
                           -- (its number is 0)
-                          e0 = newEnv (localBinds r locals ++ binds) False 0 [(Fn r i, map (keyOf . snd) binds, [], 0)]
+                          e0 = newEnv (localBinds r locals ++ binds) False 0 [(Fn r i, map (keyOf . snd) binds, [], UnfoldId 0)]
                       body0 <-
-                        unfolding 0 (partialEval env lim e0 body KTail) $
+                        unfolding (UnfoldId 0) (partialEval env lim e0 body KTail) $
                           residualCall env lim (Fn r i) (map snd binds) KTail
                       consts <- gets (reverse . sConsts)
                       fns0 <- gets sFns
@@ -595,7 +608,7 @@ bind v a e =
 
 -- | The environment of a function's body: its variables, whether an
 -- unknown match is above, the depth, and the calls being unfolded.
-newEnv :: [(Symbol, Abs)] -> Bool -> Int -> [(Fn, [KArg], [KArg], Int)] -> E
+newEnv :: [(Symbol, Abs)] -> Bool -> Int -> [(Fn, [KArg], [KArg], UnfoldId)] -> E
 newEnv binds = E vars (M.keysSet (M.filter (not . fullyKnown) vars))
   where
     vars = M.fromList binds
@@ -608,7 +621,7 @@ ret (KReturn fid) a = returnRight fid a
 ret (KAbort rid i) v = do
   valued <- gets (M.member rid . sEnds)
   when valued . liftIO . throwIO $
-    Escape (rid + i) "a case that doesn't resume, of a handler inside another, in a loop returning the outer handle's value"
+    Escape (frameAfter rid i) "a case that doesn't resume, of a handler inside another, in a loop returning the outer handle's value"
   n <- gets (maybe 1 (length . takeWhile isFused) . M.lookup rid . sReturns)
   toVar v (abortValue n i)
 ret (KEnd lid) a = do
@@ -687,6 +700,21 @@ dynPrim (KBind m h k) code = do
   pure (TLets Direct [x] [m] code rest)
 dynPrim k code = dynPrim (KBind BX (syn "r") (ret k)) code
 
+-- | The walk: the output code for a term, given what is known of its
+-- variables. A term whose value is known emits nothing and passes the
+-- value on; anything else emits code for what is unknown, specialized on
+-- what is known.
+--
+-- * @env@: how to run known code and look up loaded functions.
+-- * @lim@: the limits on steps, depth and output.
+-- * @e@: what is known of each variable in scope ('Abs'), and the calls
+--   being unfolded around this term.
+-- * @t@: the term, in the original code.
+-- * @k@: where the term's value goes ('K'): the tail of the function
+--   being made, the rest of a let, or the end of a handler's body.
+--
+-- The result is the output for @t@ together with everything after it,
+-- since @k@ walks the rest once it has the value.
 partialEval :: SpecEnv -> SpecLimits -> E -> Term -> K -> M Term
 partialEval env lim e t k =
   tick lim >> case t of
@@ -747,7 +775,8 @@ litVal = \case
   F d -> Just (Stack.DoubleVal d)
   C c -> Just (Stack.CharVal c)
   T t -> Just (Stack.boxedVal (TextC t))
-  _ -> Nothing
+  LM _ -> Nothing
+  LY _ -> Nothing
 
 -- | A known function applied to more arguments, without calling it.
 partial :: SpecEnv -> Abs -> [Abs] -> M (Maybe Abs)
@@ -888,8 +917,8 @@ call env lim e fa as k = case fa of
             active <- gets sUnfolding
             if eDepth e < slDepth lim && not (eUnderDyn e && again) && not (any (\(ks, hs) -> sameKey hk ks hs) (M.findWithDefault [] fn loops))
               then do
-                uid <- gets sNextUnfold
-                modify' \s -> s {sNextUnfold = uid + 1}
+                uid <- UnfoldId <$> gets sNextUnfold
+                modify' \s -> s {sNextUnfold = sNextUnfold s + 1}
                 unfolding uid (partialEval env lim (e' hk uid) body k) (residualCall env lim fn args k)
               else case [uid | (f, ks, hs, uid) <- eStack e, f == fn, sameKey hk ks hs, S.member uid active] of
                 -- this call closes a loop that an unfolding around it
@@ -905,7 +934,7 @@ call env lim e fa as k = case fa of
 -- | An unfolding with this number, or what to do in its place if a call
 -- inside it turns out to close a loop it started ('Redo'): the state goes
 -- back to where the unfolding began, but for the steps taken.
-unfolding :: Int -> M Term -> M Term -> M Term
+unfolding :: UnfoldId -> M Term -> M Term -> M Term
 unfolding uid walk instead = do
   modify' \s -> s {sUnfolding = S.insert uid (sUnfolding s)}
   s0 <- get
@@ -1118,7 +1147,7 @@ restAsFunction env lim innerTmpls tmpl outside f rest above vm = do
   -- the state as it is with those names taken: the function's body must
   -- not be given them again
   outer <- get
-  let rid = sNextId outer
+  let rid = FrameId (sNextId outer)
       (innerFilled, hFilled, outerFilled) =
         evalState
           ((,,) <$> traverse (traverse fillHoles) innerTmpls <*> fillHoles tmpl <*> traverse fillHoles outerTmpls)
@@ -1140,14 +1169,14 @@ restAsFunction env lim innerTmpls tmpl outside f rest above vm = do
       -- where the handle's value goes: the function's own end, or, giving
       -- the outside handlers' states back, the end of a state-passing
       -- function whose frames are theirs
-      pid = rid + 1
+      pid = frameAfter rid 1
       end = if passing then KReturn pid else KTail
       frameR
         | through = Fused rid (frRefs f) hFilled (frOuter f) 0 True
         | otherwise = Fused rid (frRefs f) hFilled end 0 False
       asSegment i g h = case g of
         Fused gi rs _ o _ _
-          | passing -> Fused (pid + i) rs h (KAbort pid i) 0 True
+          | passing -> Fused (frameAfter pid i) rs h (KAbort pid i) 0 True
           | otherwise -> Fused gi rs h o 0 True
         _ -> g
       outerSegs = zipWith3 asSegment [0 ..] (drop (j + 1) (sFrames outer)) outerFilled
@@ -1164,7 +1193,7 @@ restAsFunction env lim innerTmpls tmpl outside f rest above vm = do
         callHandler env lim (newEnv [] False 0 []) (maybe hFilled frHandler now) (SPure a) end
   put
     outer
-      { sNextId = rid + 1 + (if passing then length outerTmpls else 0),
+      { sNextId = sNextId outer + 1 + (if passing then length outerTmpls else 0),
         sReturns = if passing then M.insert pid behind (sReturns outer) else sReturns outer,
         sLetNum = 1,
         sFrames = inner ++ [frameR] ++ behind,
@@ -1181,7 +1210,7 @@ restAsFunction env lim innerTmpls tmpl outside f rest above vm = do
         -- to that handler
         | passing,
           i >= pid,
-          g : _ <- drop (i - pid) (takeWhile isFused (drop (j + 1) (sFrames outer))) ->
+          g : _ <- drop (framesAfter i pid) (takeWhile isFused (drop (j + 1) (sFrames outer))) ->
             liftIO (throwIO (Escape (frId g) ("in the rest of a body made a function, " ++ why)))
         | i >= rid -> liftIO (throwIO (Escape (frId f) ("in the rest of a body made a function, " ++ why)))
         | otherwise -> liftIO (throwIO (Escape i why))
@@ -1430,13 +1459,13 @@ residualFnAs valued env lim fs fn args0 = do
           body' <- case fs of
             [] -> partialEval env lim e' body KTail
             _ -> do
-              rid <- gets sNextId
+              rid <- FrameId <$> gets sNextId
               -- a frame of its own for each handler, which owns no target:
               -- the body returns to the function's caller
               let hAbss = drop (length args0) allArgs'
                   -- the function returns what the outermost handle gives
                   toOuter j = if valued && j == length fs - 1 then KTail else KAbort rid j
-                  segs = [Fused (rid + j) (frRefs fr) h (toOuter j) 0 True | (j, fr, h) <- zip3 [0 ..] fs hAbss]
+                  segs = [Fused (frameAfter rid j) (frRefs fr) h (toOuter j) 0 True | (j, fr, h) <- zip3 [0 ..] fs hAbss]
               -- what is behind the fused handlers stays behind the
               -- function's: a request for a handler out there escapes
               -- (a fused handler there that the function isn't passed the
@@ -1447,7 +1476,7 @@ residualFnAs valued env lim fs fn args0 = do
                   bs -> bs
               modify' \s ->
                 s
-                  { sNextId = rid + length fs,
+                  { sNextId = sNextId s + length fs,
                     sFrames = segs ++ behind,
                     sTargets = [],
                     sKonts = M.empty,
@@ -1463,7 +1492,7 @@ residualFnAs valued env lim fs fn args0 = do
                 -- handler it stands for, or the innermost
                 Left (Escape i why)
                   | i >= rid ->
-                      let to = if i < rid + length fs then fs !! (i - rid) else head fs
+                      let to = if framesAfter i rid < length fs then fs !! framesAfter i rid else head fs
                        in liftIO (throwIO (Escape (frId to) ("in a loop, " ++ why)))
                   | otherwise -> liftIO (throwIO (Escape i why))
           modify' \s ->
@@ -1559,14 +1588,14 @@ bridgeFn env lim wide fs = case fs of
             let mems = [m | Dyn _ m <- dynLeaves h]
                 h' = evalState (fillLeaves h) (zipWith Dyn params mems)
             outer <- get
-            let rid = sNextId outer
+            let rid = FrameId (sNextId outer)
                 seg = Fused rid (frRefs f) h' (KAbort rid 0) 0 True
                 behind = case drop 1 (sFrames outer) of
                   bs@(b : _) | isFused b -> Barrier : bs
                   bs -> bs
             put
               outer
-                { sNextId = rid + 1,
+                { sNextId = sNextId outer + 1,
                   sLetNum = 1,
                   sFrames = seg : behind,
                   sTargets = [],
@@ -1609,7 +1638,7 @@ bridgeFn env lim wide fs = case fs of
 -- in force returns where the function does (@KAbort@). A case that does
 -- more with what the @handle@ gives back (@match handle k () with h with
 -- ...@) has work waiting that state passing would drop, so it escapes.
-returnRight :: Int -> Abs -> M Term
+returnRight :: FrameId -> Abs -> M Term
 returnRight rid a = do
   now <- get
   case M.lookup rid (sReturns now) of
@@ -1663,16 +1692,9 @@ generalize k a = case (k, a) of
 -- | How a value is held.
 memOf :: Abs -> Mem
 memOf = \case
-  Known v _ | isUnboxed v -> UN
+  Known v _ | unboxedVal v -> UN
   Dyn _ m -> m
   _ -> BX
-  where
-    isUnboxed = \case
-      NatVal _ -> True
-      IntVal _ -> True
-      CharVal _ -> True
-      DoubleVal _ -> True
-      _ -> False
 
 -- | How the value a continuation takes is held.
 kMem :: K -> Mem
@@ -1908,10 +1930,21 @@ dynLeaves = \case
 -- | A call of @specialize.boundary@: the call of its function on the rest
 -- of its arguments stays a call.
 boundary :: SpecEnv -> E -> [Abs] -> K -> M Term
-boundary _ _ as k =
+boundary env _ as k =
   guardFused "specialize.boundary" >> case as of
-    Clo (Fn r 0) [] : xs -> toVars xs \vs -> dynResult k BX (TApp (FComb r) vs)
-    f : xs -> toVarApp f xs \g vs -> dynResult k BX (TApp (FVar g) vs)
+    -- a top-level function, with what it has been applied to so far: a
+    -- call of the original, not of a specialization on those arguments
+    Clo (Fn r 0) caps : xs -> toVars (caps ++ xs) \vs -> dynResult k BX (TApp (FComb r) vs)
+    f : xs -> do
+      -- a closure known entirely is called as the value it is. One of a
+      -- local function with something unknown captured has no name in the
+      -- original code to call it by, and is specialized on what it
+      -- captured ('toVar').
+      whole <- allKnown env [f]
+      let fn = case whole of
+            Just [v] -> Known v Nothing
+            _ -> f
+      toVarApp fn xs \g vs -> dynResult k BX (TApp (FVar g) vs)
     [] -> liftIO . throwIO $ GiveUp "boundary of nothing"
 
 -- | A primitive: run it when its arguments are known, otherwise keep it.
@@ -1954,10 +1987,10 @@ match env lim e v br k = case (look e v, br) of
     arms' <- for arms \(r, cs) ->
       (r,) . EC.mapFromList <$> for (EC.mapToList cs) \(t, (ms, ABTN.TAbss vs body)) -> isolated do
         vs' <- traverse freshNamed vs
-        kid <- gets sNextId
+        kid <- KontId <$> gets sNextId
         modify' \st ->
           st
-            { sNextId = kid + 1,
+            { sNextId = sNextId st + 1,
               sBridgeK = M.insert kid (rid, Nothing) (sBridgeK st),
               sPending = Just (kid, r),
               sFrames = drop 1 frames
@@ -2028,7 +2061,7 @@ match env lim e v br k = case (look e v, br) of
     -- rest, where a variable would lose it.
     joined fusedNow = do
       st0 <- get
-      let jid = sNextId st0
+      let jid = JoinId (sNextId st0)
           m = kMem k
           kJoin = KBind m (syn "r") \a -> do
             now <- get
@@ -2045,7 +2078,7 @@ match env lim e v br k = case (look e v, br) of
                     modify' \st -> st {sJoins = M.insertWith (++) jid [(ph, a, usedKonts now, hs)] (sJoins st)}
                     pure (TVar ph)
               _ -> ret k a
-      put st0 {sNextId = jid + 1, sJoins = M.insert jid [] (sJoins st0)}
+      put st0 {sNextId = sNextId st0 + 1, sJoins = M.insert jid [] (sJoins st0)}
       code <- dynamicWith kJoin (\c -> pure c)
       recs <- gets (M.findWithDefault [] jid . sJoins)
       modify' \st -> st {sJoins = M.delete jid (sJoins st)}
@@ -2139,7 +2172,9 @@ match env lim e v br k = case (look e v, br) of
           MatchRequest
             <$> traverse (\(r, cs) -> (r,) . EC.mapFromList <$> traverse (requestArm arm) (EC.mapToList cs)) arms
             <*> pureArm arm df
-        _ -> giveUp "match form"
+        MatchEmpty -> giveUp "a match with no cases"
+        MatchRec {} -> giveUp "a match on a record"
+        MatchSum {} -> giveUp "a match on a sum"
       finish (TMatch x br')
     dataArm arm r (t, (ms, ABTN.TAbss vs body)) = do
       vs' <- traverse freshNamed vs
@@ -2200,7 +2235,12 @@ guardFused why =
     Just f -> liftIO (throwIO (Escape (frId f) why))
     Nothing -> pure ()
 
--- | A walk with a kept handler in force: a barrier to fused ones outside.
+-- | A walk with a kept handler in force. A kept handler is one left in the
+-- output as a real @handle@, and it is a barrier ('Barrier') to the fused
+-- handlers outside it: a request made under it for one of them would have
+-- to pass through a real handler, which the walk can't follow, so that
+-- request escapes instead of being fused ('request'). (Not to be confused
+-- with @specialize.boundary@, which keeps a call as a call.)
 -- Afterwards the handlers in force are the ones before it, whatever the
 -- walk left: a continuation resumed under the kept handler put its frames
 -- and its target back, and its body ended as the kept handler's does,
@@ -2228,7 +2268,7 @@ request env lim e r t args k = do
       -- another function ('Reify'), back to here, and with the rest of
       -- the body made a residual function.
       st0 <- get
-      let kid = sNextId st0
+      let kid = KontId (sNextId st0)
       liftIO (Control.Exception.try (runStateT (handled j kid False) st0)) >>= \case
         Right (code, st1) -> code <$ put st1
         Left (Reify kid')
@@ -2245,7 +2285,7 @@ request env lim e r t args k = do
       targets <- gets sTargets
       let above = length targets - frDepth f - (if frSegment f then 0 else 1)
           own = if frSegment f then 0 else 1
-      modify' \st -> st {sNextId = kid + 1}
+      modify' \st -> st {sNextId = sNextId st + 1}
       when reify (asFunction j kid f rest above)
       modify' \st ->
         st
@@ -2351,7 +2391,7 @@ handledBody e body handle
 -- from the request, with the value as its result, the frames and targets
 -- between it and its handler put back, and the resumption site as where
 -- the body returns. A second resumption escapes, for now.
-resume :: Int -> Abs -> K -> M Term
+resume :: KontId -> Abs -> K -> M Term
 resume kid v k =
   gets (M.lookup kid . sBridgeK) >>= \case
     Just (rid, Just kr) -> resumeBridge rid kr v k
@@ -2364,7 +2404,7 @@ resume kid v k =
 otherShape :: String
 otherShape = "a bridge's case resuming under a handler of another shape"
 
-escapeTo :: Int -> String -> M a
+escapeTo :: FrameId -> String -> M a
 escapeTo i why = liftIO (throwIO (Escape i why))
 
 -- | Resuming the continuation of a request a bridge's handler was given:
@@ -2373,7 +2413,7 @@ escapeTo i why = liftIO (throwIO (Escape i why))
 -- gives, so the resumption must be the last thing its case does: the
 -- handler installed returns where the bridge's own did. A case that goes on
 -- after resuming, or resumes twice, escapes, and its handler is kept.
-resumeBridge :: Int -> Symbol -> Abs -> K -> M Term
+resumeBridge :: FrameId -> Symbol -> Abs -> K -> M Term
 resumeBridge rid kr v k = do
   env <- gets sEnv
   lim <- gets sLim
@@ -2401,7 +2441,7 @@ resumeBridge rid kr v k = do
 -- | Resuming a continuation that was made a residual function ('request'):
 -- a call of it with the state of the handler the case installs around the
 -- resumption, whose value is what that @handle@ gives.
-resumeFunction :: (Symbol, Abs, [Reference], Int, Outside) -> Abs -> K -> M Term
+resumeFunction :: (Symbol, Abs, [Reference], FrameId, Outside) -> Abs -> K -> M Term
 resumeFunction (rsym, tmpl, refs, handledBy, outside) v k = do
   frames <- gets sFrames
   targets <- gets sTargets
@@ -2466,7 +2506,7 @@ matchHoles t a = case (t, a) of
   _ | sameAbs t a -> Just []
   _ -> Nothing
 
-resumeWalk :: Int -> Abs -> K -> M Term
+resumeWalk :: KontId -> Abs -> K -> M Term
 resumeWalk kid v k = do
   gets (M.lookup kid . sKonts) >>= \case
     -- from outside this residual function: it must be a function itself
@@ -2511,8 +2551,8 @@ handler env lim e t rs h body k =
       code <- handledBody e body' (THnd rs h' Nothing)
       dynResult k BX code
     fused = do
-      fid <- gets sNextId
-      modify' \st -> st {sNextId = fid + 1}
+      fid <- FrameId <$> gets sNextId
+      modify' \st -> st {sNextId = sNextId st + 1}
       s0 <- get
       let -- what follows the handle, by a name if it has none
           outer = case k of
@@ -2544,7 +2584,7 @@ handler env lim e t rs h body k =
         -- a continuation of a request made under this handler, wanted as a
         -- function where its request can't be gone back to
         Left (Reify kid)
-          | kid > fid -> do
+          | kid `madeUnder` fid -> do
               put s0
               liftIO (seNote env "a handler kept: a continuation needed as a function after its request's walk was over")
               kept
@@ -2664,18 +2704,17 @@ runIfKnown env e t =
   where
     fvs = S.toList (ABTN.freeVars t)
     abss = map (look e) fvs
-    memOf = \case
-      Known v _ | unboxedVal v -> UN
-      Dyn _ m -> m
-      _ -> BX
 
 unboxedVal :: Val -> Bool
 unboxedVal = \case
-  NatVal _ -> True
-  IntVal _ -> True
-  CharVal _ -> True
-  DoubleVal _ -> True
-  _ -> False
+  Stack.UnboxedVal _ tag -> case tag of
+    Stack.NatTag -> True
+    Stack.IntTag -> True
+    Stack.CharTag -> True
+    Stack.FloatTag -> True
+    -- the slot of a wide variable, which only loaded code has
+    Stack.WitnessTag _ -> False
+  BoxedVal {} -> False
 
 -- | Code the partial evaluator doesn't look into: run if its inputs are
 -- all known, otherwise kept as it is, its free variables given values in
@@ -2909,8 +2948,22 @@ binderMems = \case
         MatchSum cs -> concat [zip (absVars b) ms | (ms, b) <- map snd (EC.mapToList cs)]
         MatchRequest arms df -> concat [zip (absVars b) ms | (_, cs) <- arms, (ms, b) <- map snd (EC.mapToList cs)] ++ boxed df
         MatchRec _ b -> boxed b
-        _ -> []
-      _ -> []
+        MatchIntegral {} -> []
+        MatchNumeric {} -> []
+        MatchText {} -> []
+        MatchBytes {} -> []
+        MatchEmpty -> []
+      -- these bind nothing
+      ALit _ -> []
+      ABLit _ -> []
+      AHnd {} -> []
+      AApp {} -> []
+      AFrc _ -> []
+      AVar _ -> []
+      ADiscard _ -> []
+      ALocal {} -> []
+      AUpdate {} -> []
+      ABox _ -> []
     boxed b = map (,BX) (absVars b)
 
 absVars :: Term -> [Symbol]
@@ -2978,3 +3031,48 @@ threadConsts needs = go
       TApp (FVar f) xs | Just cs <- M.lookup f needs -> TApp (FVar f) (cs ++ xs)
       TName x (Right f) xs bo | Just cs <- M.lookup f needs -> TName x (Right f) (cs ++ xs) (go bo)
       ABTN.TTm f -> ABTN.TTm (fmap go f)
+
+-- Instances
+
+-- | The index first: the functions compared are mostly of one group, and
+-- equal references are compared hash against hash.
+instance Eq Fn where
+  Fn r i == Fn r' i' = i == i' && r == r'
+
+-- | Known values are compared by address before they are compared by
+-- structure: the runtime's equality has no such shortcut, and nearly every
+-- pair of equal known values met here is one value, a table of a program
+-- or an interpreter's code, reached twice.
+instance Eq KArg where
+  a == b = case (a, b) of
+    (KKnown v, KKnown w) -> sameBoxed v w || v == w
+    (KCon r t xs, KCon r' t' ys) -> r == r' && t == t' && xs == ys
+    (KClo f xs, KClo g ys) -> f == g && xs == ys
+    (KHole m, KHole n) -> m == n
+    (KKont i, KKont j) -> i == j
+    _ -> False
+
+instance Ord KArg where
+  compare a b = case (a, b) of
+    (KKnown v, KKnown w) -> if sameBoxed v w then EQ else compare v w
+    (KCon r t xs, KCon r' t' ys) -> compare r r' <> compare t t' <> compare xs ys
+    (KClo f xs, KClo g ys) -> compare f g <> compare xs ys
+    (KHole m, KHole n) -> compare m n
+    (KKont i, KKont j) -> compare i j
+    _ -> compare (rank a) (rank b)
+    where
+      rank :: KArg -> Int
+      rank = \case
+        KKnown {} -> 0
+        KCon {} -> 1
+        KClo {} -> 2
+        KHole {} -> 3
+        KKont {} -> 4
+
+instance Exception GiveUp
+
+instance Exception Redo
+
+instance Exception Escape
+
+instance Exception Reify

@@ -10,6 +10,7 @@ module Unison.Runtime.Machine
     CCache (..),
     Combs,
     IRPrinter (..),
+    Specializations,
     plainIR,
     Tracer (..),
     apply0,
@@ -31,6 +32,7 @@ module Unison.Runtime.Machine
     refNumsTy,
     reifyValue,
     runKnown,
+    stateBuiltin,
     KnownLimits (..),
     defaultKnownLimits,
     resolveSection,
@@ -97,6 +99,7 @@ import Unison.Runtime.ANF as ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
+import Unison.Runtime.ANF.POp (OpKind (..), opKind)
 import Unison.Runtime.ANF.Rehash (rehashGroups)
 import Unison.Runtime.ANF.Serialize (serializeValueForHash)
 import Unison.Runtime.ANF.Specialize qualified as SP
@@ -445,7 +448,8 @@ exec env henv !_activeThreads !stk !k _ (Prim2 TRCE i j)
   | otherwise = do
       tx <- peekOffBi stk i
       clo <- peekOff stk j
-      case tracer env True clo of
+      specs <- readTVarIO (specializations env)
+      case tracer env specs True clo of
         NoTrace -> pure ()
         SimpleTrace str -> do
           putStrLn $ "trace: " ++ Util.Text.unpack tx
@@ -2516,11 +2520,31 @@ callingBack =
   where
     callsBack vs = any (calling vs) . anfNodes
     calling vs = \case
-      ANF.AApp (ANF.FVar f) _ -> S.member f vs
-      ANF.AApp (ANF.FCont _) _ -> True
+      ANF.AApp fn _ -> case fn of
+        ANF.FVar f -> S.member f vs
+        ANF.FCont _ -> True
+        ANF.FPrim (Left op) -> opKind op == CallingOp
+        ANF.FPrim (Right _) -> False
+        ANF.FComb _ -> False
+        ANF.FCon _ _ -> False
+        ANF.FReq _ _ -> False
+        ANF.FRec _ -> False
+        ANF.FRecSet _ -> False
+        ANF.FWorker _ _ -> False
+        ANF.FYield -> False
       ANF.AFrc f -> S.member f vs
-      ANF.AApp (ANF.FPrim (Left op)) _ -> op `elem` [ANF.FORK, ANF.ATOM, ANF.TFRC]
-      _ -> False
+      ANF.ALet {} -> False
+      ANF.AName {} -> False
+      ANF.ALit _ -> False
+      ANF.ABLit _ -> False
+      ANF.AMatch {} -> False
+      ANF.AShift {} -> False
+      ANF.AHnd {} -> False
+      ANF.AVar _ -> False
+      ANF.ADiscard _ -> False
+      ANF.ALocal {} -> False
+      ANF.AUpdate {} -> False
+      ANF.ABox _ -> False
 
 -- | A term run on the interpreter with values for its free variables,
 -- through a group of its own whose parameters they are, loaded the first
@@ -2588,41 +2612,10 @@ runPrim cc p vs
           digest = hashlazy . BB.toLazyByteString $ BB.string7 ("unison specialize primitive\0" ++ show p ++ "\0" ++ show n)
        in Derived (Hash.fromByteString (convert digest)) 0
     allowed = case p of
-      Left op -> op `notElem` effectfulPrims
+      Left op -> opKind op == PureOp
       Right ff ->
         not (S.member ff sandboxedForeignFuncs)
           && not (stateBuiltin (Builtin (foreignFuncBuiltinName ff)))
-    effectfulPrims =
-      [ ANF.FORK,
-        ANF.EROR,
-        ANF.MISS,
-        ANF.CACH,
-        ANF.LKUP,
-        ANF.LOAD,
-        ANF.CVLD,
-        ANF.SDBX,
-        ANF.VALU,
-        ANF.SPEC,
-        ANF.RTIR,
-        ANF.PRNT,
-        ANF.INFO,
-        ANF.TRCE,
-        ANF.DBTX,
-        ANF.ATOM,
-        ANF.TFRC,
-        ANF.SDBL,
-        ANF.SDBV,
-        ANF.REFN,
-        ANF.REFR,
-        ANF.REFW,
-        ANF.RCAS,
-        ANF.RRFC,
-        ANF.TIKR,
-        ANF.KEEP,
-        ANF.FGNN,
-        ANF.FGNF,
-        ANF.MKCB
-      ]
 
 -- | The key 'specialized' remembers a closure by: a hash of the
 -- closure, as the value hash serializes it, under a prefix that keeps it
@@ -2815,20 +2808,27 @@ valueSize cap n0 v0 = val n0 v0
       | n >= cap = n
       | otherwise = case v of
           BoxedVal c -> clo (n + 1) c
-          _ -> n + 1
+          UnboxedVal {} -> n + 1
     clo n = \case
       PAp _ _ (_, bseg) -> foldl' (\m c -> if m >= cap then m else clo (m + 1) c) n bseg
       DataC _ vs -> foldl' val n vs
       RecordC _ vs -> foldl' val n vs
       ListC vs -> foldl' val n vs
-      _ -> n
+      -- counted as one value each, whatever they hold
+      Captured {} -> n
+      TextC _ -> n
+      BytesC _ -> n
+      Foreign _ -> n
+      BlackHole -> n
+      UnboxedTypeTag _ -> n
+      Affine {} -> n
 
 -- | Whether a value holds anything that can't be serialized: a mutable
 -- reference, a mutable array, a handle.
 containsMutable :: Val -> Bool
 containsMutable = \case
   BoxedVal c -> go c
-  _ -> False
+  UnboxedVal {} -> False
   where
     go = \case
       PAp _ _ (_, bseg) -> any go bseg
@@ -2846,18 +2846,42 @@ containsMutable = \case
         WrapByteArray _ -> False
         WrapInteger _ -> False
         WrapNatural _ -> False
+        -- any other foreign value counts as mutable
         _ -> True
-      _ -> False
+      TextC _ -> False
+      BytesC _ -> False
+      UnboxedTypeTag _ -> False
+      -- not values a program holds; counted as mutable to be safe
+      BlackHole -> True
+      Affine {} -> True
 
 -- | The builtins that operate on mutable state, which known code may not
--- use: its result could change between now and run time.
+-- use: its result could change between now and run time. The builtins
+-- that do IO are in the sandbox's list instead ('knownRunnable').
+--
+-- This library can't see the types of the builtins, which say which ones
+-- these are, so the list is by name; a test compares it with the types
+-- (Unison.Test.Runtime.Specialize.refusedTest) and fails when a builtin
+-- with an ability in its type is in neither list.
 stateBuiltin :: Reference -> Bool
 stateBuiltin = \case
   Builtin t -> any (`DTx.isPrefixOf` t) statePrefixes
-  _ -> False
+  Derived {} -> False
   where
     statePrefixes =
-      ["Ref.", "Scope.", "MutableArray.", "MutableByteArray.", "TVar.", "MVar.", "Promise.", "IO.ref", "STM."]
+      [ "Ref.",
+        "Scope.",
+        "MutableArray.",
+        "MutableByteArray.",
+        "ImmutableArray.copyTo!",
+        "ImmutableByteArray.copyTo!",
+        "FFI.",
+        "TVar.",
+        "MVar.",
+        "Promise.",
+        "IO.ref",
+        "STM."
+      ]
 
 -- | The code a value refers to: the combinators of its closures and
 -- continuations, through data, lists, immutable arrays and maps (which
@@ -2866,7 +2890,7 @@ stateBuiltin = \case
 valueCodeRefs :: Val -> S.Set Reference
 valueCodeRefs = \case
   BoxedVal c -> go c
-  _ -> mempty
+  UnboxedVal {} -> mempty
   where
     go = \case
       PAp (CIx r _ _) _ (_, bseg) -> S.insert r (foldMap go bseg)
@@ -2876,7 +2900,12 @@ valueCodeRefs = \case
       ListC vs -> foldMap valueCodeRefs vs
       Foreign (WrapArray a) -> foldMap valueCodeRefs a
       Foreign (WrapMap m) -> foldMap (\(x, y) -> valueCodeRefs x <> valueCodeRefs y) (M.toList m)
-      _ -> mempty
+      Foreign _ -> mempty
+      TextC _ -> mempty
+      BytesC _ -> mempty
+      BlackHole -> mempty
+      UnboxedTypeTag _ -> mempty
+      Affine {} -> mempty
 
 -- | @UNISON_SPECIALIZE_DEBUG@: say on stderr what each specialization
 -- made, or why it gave up.
@@ -2922,10 +2951,10 @@ runtimeIR cc val = fmap (Util.Text.pack . ($ "")) $ case val of
     let comment = foldr (\l rest -> showString "-- " . showString l . showString "\n" . rest) id . lines
         origin = case M.lookup r specs of
           Just (CIx o _ oi, _, _)
-            | Nothing <- irValue (irPrinter cc) val ->
+            | Nothing <- irValue (irPrinter cc) specs val ->
                 showString "-- specialization of " . shows o . showString " " . shows oi . showString "\n"
           _ -> id
-        closure = case irValue (irPrinter cc) val of
+        closure = case irValue (irPrinter cc) specs val of
           Just s -> comment s
           Nothing ->
             showString "-- closure of "
@@ -2943,12 +2972,14 @@ runtimeIR cc val = fmap (Util.Text.pack . ($ "")) $ case val of
               og@(ANF.Rec ogrp _) ->
                 -- the optimized group's local functions: optimization adds
                 -- some (an affine handler's matcher)
-                showString (irCombs (irPrinter cc) r (fst <$> ogrp) (rewrittenLambdas b r og))
-  _ -> case irValue (irPrinter cc) val of
-    Just s -> pure $ showString s . showString "\n"
-    Nothing -> do
-      v <- reflectOrSay val
-      pure $ showString v . showString "\n"
+                showString (irCombs (irPrinter cc) specs r (fst <$> ogrp) (rewrittenLambdas b r og))
+  _ -> do
+    specs <- readTVarIO (specializations cc)
+    case irValue (irPrinter cc) specs val of
+      Just s -> pure $ showString s . showString "\n"
+      Nothing -> do
+        v <- reflectOrSay val
+        pure $ showString v . showString "\n"
   where
     -- a value that can't be reflected (a mutable reference, say) is named,
     -- not shown
@@ -2977,8 +3008,9 @@ reflectValueWith placeholders env val = do
   bns <- readTVarIO (baseNums env)
   let tmr' = tmr <> EC.mapFromList [(nb, r) | (n, nb) <- EC.mapToList bns, Just r <- [EC.lookup n tmr]]
   reflectValue0 placeholders cmbs bns tyr tmr' val
-    `catch` \(ReflectExn problem) ->
-      die [] $ err problem rendered
+    `catch` \(ReflectExn problem) -> do
+      specs <- readTVarIO (specializations env)
+      die [] $ err problem (rendered specs)
   where
     err s v =
       "reflectValue: cannot prepare value for serialization: "
@@ -2986,7 +3018,7 @@ reflectValueWith placeholders env val = do
         ++ "\n\nSerialized value:\n\n"
         ++ v
 
-    rendered = case tracer env False val of
+    rendered specs = case tracer env specs False val of
       NoTrace -> show val
       MsgTrace _ _ pre -> pre
       SimpleTrace ugl -> ugl

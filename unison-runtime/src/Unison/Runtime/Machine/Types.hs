@@ -172,20 +172,28 @@ instance RuntimeProfiler ProfileComm where
 
 #endif
 
--- | How @runtime.ir@ shows code and values.
+-- | Each group @specialize@ generated, by reference: the combinator of
+-- the closure it was made from, how many arguments that closure had,
+-- which are the first arguments of the specialized closure, and how
+-- many constants follow them. Only for showing a specialized closure
+-- as @specialize f x@. An entry, once there, never changes or goes away.
+type Specializations = M.Map Reference (CombIx, Int, Int)
+
+-- | How @runtime.ir@ shows code and values, given the specializations
+-- made so far.
 data IRPrinter = IRPrinter
   { -- | the combinators of a group by index (the entry at 0), given the
     -- group's reference and the variables naming its local functions
-    irCombs :: Reference -> [Symbol] -> [(Word64, ANF.SuperNormal Reference Symbol)] -> String,
+    irCombs :: Specializations -> Reference -> [Symbol] -> [(Word64, ANF.SuperNormal Reference Symbol)] -> String,
     -- | a value as a term, or Nothing to show its reflection
-    irValue :: Val -> Maybe String
+    irValue :: Specializations -> Val -> Maybe String
   }
 
 -- | The printer without names: references as hashes, values reflected.
 plainIR :: IRPrinter
-plainIR = IRPrinter combs (const Nothing)
+plainIR = IRPrinter combs (\_ _ -> Nothing)
   where
-    combs _ _ cmbs =
+    combs _ _ _ cmbs =
       foldr
         (\(ix, lam) rest -> showString "lambda " . shows ix . ANF.prettySuperNormal 1 lam . showString "\n" . rest)
         id
@@ -195,7 +203,9 @@ plainIR = IRPrinter combs (const Nothing)
 -- code caching environment
 data CCache prof = CCache
   { sandboxed :: Bool,
-    tracer :: Bool -> Val -> Tracer,
+    -- | how @Debug.trace@ and @Debug.toText@ show a value, given the
+    -- specializations made so far
+    tracer :: Specializations -> Bool -> Val -> Tracer,
     -- | how @runtime.ir@ shows a group's combinators as the emitter gets
     -- them; ucm installs the printer of `ir.optimized`, with the
     -- codebase's names, in place of this plain one ('plainIR')
@@ -214,12 +224,7 @@ data CCache prof = CCache
     -- constants its code takes after the closure's own arguments, or
     -- Nothing when the specializer gave up (Machine.specializeClosure)
     specialized :: TVar (M.Map Reference (Maybe (Reference, [Val]))),
-    -- each group @specialize@ generated, by reference: the combinator of
-    -- the closure it was made from, how many arguments that closure had,
-    -- which are the first arguments of the specialized closure, and how
-    -- many constants follow them. Only for showing a specialized closure
-    -- as @specialize f x@.
-    specializations :: TVar (M.Map Reference (CombIx, Int, Int)),
+    specializations :: TVar Specializations,
     -- whether the code of a reference may run while specializing: it reaches
     -- no builtin that can do IO or touch mutable state (Machine.knownRunnable)
     runnableRefs :: TVar (M.Map Reference Bool),
@@ -302,7 +307,7 @@ baseCCache jit sandboxed = do
   where
     builtinFieldNumbering = mempty
     cacheableCombs = mempty
-    noTrace _ _ = NoTrace
+    noTrace _ _ _ = NoTrace
     ftm = 1 + maximum builtinTermNumbering
     -- No builtin record schemas yet
     frs = 1
