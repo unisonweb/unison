@@ -205,3 +205,50 @@ With the JIT off every specialized row is within 1% of the last run. With it on 
 within 4%, except the state handler's loop (3.45 µs against 3.26 µs, a row of a few
 microseconds) and the interpreter in continuation-passing style, which varies between
 runs as before.
+
+
+## With the generated group named by a hash of its code
+
+At `b1817759c`, after the changes to how fast the specializer runs (`embeds`, the loops
+table, known runs of a plain builtin) and to how a specialized closure is named and
+serialized ([design.md](../../ANF/Specialize/design.md), "A specialized closure as a value").
+None of them changes the generated code, so this run checks that nothing moved. All rows:
+
+| Row | JIT off | JIT on |
+| --- | --- | --- |
+| fib 20: interpreted | 16.5 ms | 748 µs |
+| fib 20: specialized | 1.76 ms | 36.8 µs |
+| fib 20: by hand | 1.77 ms | 36.8 µs |
+| polynomial, 100000 points: interpreted | 135 ms | 6.54 ms |
+| polynomial, 100000 points: specialized | 15.6 ms | 553 µs |
+| polynomial, 100000 points: by hand | 15.2 ms | 484 µs |
+| map with a lambda, 10000 elements: generic | 1.43 ms | 259 µs |
+| map with a lambda, 10000 elements: specialized | 696 µs | 232 µs |
+| foldLeft with a lambda, 10000 elements: generic | 1.09 ms | 171 µs |
+| foldLeft with a lambda, 10000 elements: specialized | 421 µs | 156 µs |
+| foldLeft with a lambda, 10000 elements: by hand | 422 µs | 156 µs |
+| filter and map as a fold, 10000 elements: generic | 1.92 ms | 251 µs |
+| filter and map as a fold, 10000 elements: specialized | 959 µs | 161 µs |
+| filter and map as a fold, 10000 elements: by hand | 960 µs | 162 µs |
+| five functions from a list, 100000 points: generic | 88.6 ms | 11.4 ms |
+| five functions from a list, 100000 points: specialized | 15.7 ms | 611 µs |
+| five functions from a list, 100000 points: by hand | 15.3 ms | 485 µs |
+| state handler around a loop, 10000 rounds: generic | 2.60 ms | 437 µs |
+| state handler around a loop, 10000 rounds: specialized | 396 µs | 3.24 µs |
+| state handler around a loop, 10000 rounds: by hand | 396 µs | 3.18 µs |
+| fib 20, interpreter with an ability to bail: interpreted | 19.0 ms | 898 µs |
+| fib 20, interpreter with an ability to bail: specialized | 3.24 ms | 112 µs |
+| tick counter around a recursion, 1000 deep: generic | 62.7 ms | 79.0 ms |
+| tick counter around a recursion, 1000 deep: specialized | 178 µs | 29.0 µs |
+| tick counter around a recursion, 1000 deep: by hand | 65.9 µs | 6.81 µs |
+| coin flips in a loop, 10 flips: generic | 1.12 ms | 1.35 ms |
+| coin flips in a loop, 10 flips: specialized | 280 µs | 52.2 µs |
+| coin flips in a loop, 10 flips: by hand | 166 µs | 25.6 µs |
+| fib 20, interpreter in CPS: interpreted | 27.5 ms | 4.34 ms |
+| fib 20, interpreter in CPS: specialized | 2.21 ms | 234 µs |
+
+Every specialized and by-hand row is within 4% of its last recorded figure, except the
+interpreter in continuation-passing style under the JIT (234 µs), which is inside the
+167 µs to 250 µs it has varied over. Two rows that involve no specialized code moved under
+the JIT: the generic tick counter is 79.0 ms where it was 211 ms, and the interpreted
+continuation-passing interpreter is 4.34 ms where it was 3.50 ms. Neither was looked into.
