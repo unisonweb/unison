@@ -2657,13 +2657,19 @@ data KnownLimits = KnownLimits
     knownMicros :: !Int
   }
 
+-- | The stack a run of known code starts with, in slots besides its
+-- arguments.
+knownStackSlots :: Int
+knownStackSlots = 32
+
 defaultKnownLimits :: KnownLimits
 defaultKnownLimits = KnownLimits {knownFuel = 1000000, knownMicros = 200000}
 
 -- | A known function applied to known arguments, run now on the
 -- interpreter, or Nothing when that can't be done safely: the code could
 -- have an effect or read mutable state ('knownRunnable'), or it performs a
--- request nothing in it handles, fails, or runs out of fuel or time. A
+-- request nothing in it handles, fails, or runs out of fuel or time (a
+-- builtin that runs no Unison code has no time limit). A
 -- Nothing is never an error: the specializer then works through the call
 -- itself. Fewer arguments than the function takes give a closure, more
 -- apply the result to the rest.
@@ -2677,7 +2683,9 @@ runKnown cc lim f args
         True -> do
           fuel <- newIORef (knownFuel lim)
           result <- newIORef Nothing
-          stk0 <- alloc (stackSlots (jit cc))
+          -- a small stack: nearly every run is one builtin, and a stack
+          -- grows when it has to
+          stk0 <- alloc (min (stackSlots (jit cc)) (knownStackSlots + length args))
           stk <- foldM (\stk v -> bump stk >>= \stk -> stk <$ poke stk v) stk0 args
           let env = cc {profiler = Fuel fuel}
               k0 = CB . Hook $ \xstk -> peek (packXStack xstk) >>= writeIORef result . Just
@@ -2687,8 +2695,21 @@ runKnown cc lim f args
                 [i] -> VArg1 i
                 [i, j] -> VArg2 i j
                 is -> VArgN $ PA.primArrayFromList is
+              -- A builtin that runs no Unison code needs no time limit,
+              -- and setting one up costs more than running it: nearly
+              -- every run is one of these (an equality, an arithmetic
+              -- operation on known numbers).
+              limited
+                | plainBuiltin = fmap Just
+                | otherwise = timeout (knownMicros lim)
+              plainBuiltin = case f of
+                BoxedVal (PAp (CIx r@(Builtin _) _ 0) _ captured)
+                  | S.notMember r callingBack,
+                    Just arity <- M.lookup r builtinArities ->
+                      length (segToList captured) + length args <= arity
+                _ -> False
           outcome <-
-            timeout (knownMicros lim) . UnliftIO.tryAny $ do
+            limited . UnliftIO.tryAny $ do
               (tick, cancel) <- startTicker (profiler env)
               apply tick env mempty Nothing stk k0 False as f `finally` cancel
           when specializeDebug $ case outcome of
