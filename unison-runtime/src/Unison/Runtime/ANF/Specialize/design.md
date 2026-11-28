@@ -4,7 +4,7 @@ This document describes the design of Unison's specializer. The code is [`Specia
 
 ## The idea
 
-`specialize f x` behaves exactly like `f x`, but unlike ordinary function application, it specializes and recompiles `f` given the argument `x`:
+`specialize f x` behaves exactly like `f x`, but partially evaluates the result using the known value for `x`:
 
 ```unison
 specialize : (a ->{g} b) -> a ->{g} b
