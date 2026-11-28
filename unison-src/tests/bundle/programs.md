@@ -259,6 +259,13 @@ words n =
   go acc i = if i == n then acc else go (acc ++ Nat.toText i ++ " ") (i + 1)
   go "" 0
 
+-- specialized closures in a compiled program: code generated at run time
+powerOf : Nat -> Nat -> Nat
+powerOf n x = if n == 0 then 1 else x * powerOf (n - 1) x
+
+countTo : Nat -> Nat
+countTo n = runCounter 0 '(sumNext n)
+
 checks : '{IO, Exception} ()
 checks = do
   show "sumTo" (sumTo 10000)
@@ -280,6 +287,8 @@ checks = do
   show "list" (List.size (squares 1000), List.at 999 (squares 1000))
   show "text" (Text.size (words 300), Text.take 20 (words 300))
   show "bytes" (Bytes.size (Text.toUtf8 (words 300)), Bytes.take 4 (Text.toUtf8 "héllo"))
+  cube = specialize powerOf 3
+  show "specialize" (cube 2, cube 5, specialize countTo 100)
 ```
 
 ```ucm :hide

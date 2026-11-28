@@ -51,11 +51,11 @@ unique type Foo a = Bar Nat a
   definitions would no longer typecheck.
 
   You're now on a temporary branch, update-main, and the
-  definitions to fix are in update-main-cf3898ff.u.
+  definitions to fix are in update-main-f634368d.u.
 
   Edit the file, then run:
 
-      scratch/update-main> load update-main-cf3898ff.u
+      scratch/update-main> load update-main-f634368d.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -70,7 +70,7 @@ unique type Foo a = Bar Nat a
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm update-main-cf3898ff.u
+``` unison :added-by-ucm update-main-f634368d.u
 type Foo a = Bar Nat a
 
 -- The definitions below no longer typecheck with the changes above.

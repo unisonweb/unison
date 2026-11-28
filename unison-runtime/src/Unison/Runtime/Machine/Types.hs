@@ -35,6 +35,7 @@ import GHC.Event (getSystemTimerManager, registerTimeout)
 import System.CPUTime
 #endif
 import Control.Monad.State.Strict
+import Data.Text qualified
 import Unison.Prelude
 import Unison.Reference (Reference, isBuiltin)
 import Unison.Referent (Referent, pattern Ref)
@@ -171,10 +172,44 @@ instance RuntimeProfiler ProfileComm where
 
 #endif
 
+-- | Each group @specialize@ generated, by reference: the combinator of
+-- the closure it was made from, how many arguments that closure had,
+-- which are the first arguments of the specialized closure, and how
+-- many constants follow them. Only for showing a specialized closure
+-- as @specialize f x@. An entry, once there, never changes or goes away.
+type Specializations = M.Map Reference (CombIx, Int, Int)
+
+-- | How @runtime.ir@ shows code and values, given the specializations
+-- made so far.
+data IRPrinter = IRPrinter
+  { -- | the combinators of a group by index (the entry at 0), given the
+    -- group's reference and the variables naming its local functions
+    irCombs :: Specializations -> Reference -> [Symbol] -> [(Word64, ANF.SuperNormal Reference Symbol)] -> String,
+    -- | a value as a term, or Nothing to show its reflection
+    irValue :: Specializations -> Val -> Maybe String
+  }
+
+-- | The printer without names: references as hashes, values reflected.
+plainIR :: IRPrinter
+plainIR = IRPrinter combs (\_ _ -> Nothing)
+  where
+    combs _ _ _ cmbs =
+      foldr
+        (\(ix, lam) rest -> showString "lambda " . shows ix . ANF.prettySuperNormal 1 lam . showString "\n" . rest)
+        id
+        cmbs
+        ""
+
 -- code caching environment
 data CCache prof = CCache
   { sandboxed :: Bool,
-    tracer :: Bool -> Val -> Tracer,
+    -- | how @Debug.trace@ and @Debug.toText@ show a value, given the
+    -- specializations made so far
+    tracer :: Specializations -> Bool -> Val -> Tracer,
+    -- | how @runtime.ir@ shows a group's combinators as the emitter gets
+    -- them; ucm installs the printer of `ir.optimized`, with the
+    -- codebase's names, in place of this plain one ('plainIR')
+    irPrinter :: IRPrinter,
     profiler :: !prof,
     -- Combinators in their original form, where they're easier to serialize into SCache
     srcCombs :: TVar (EnumMap Word64 Combs),
@@ -184,6 +219,19 @@ data CCache prof = CCache
     -- rewrote (MCode.emitCombs): what a continuation from another process
     -- resumes (reifyValue), never compiled, so not in combRefs
     baseNums :: TVar (EnumMap Word64 Word64),
+    -- what @specialize@ made of each closure, by a hash of the closure
+    -- (Machine.closureKey): the generated group's reference and the
+    -- constants its code takes after the closure's own arguments, or
+    -- Nothing when the specializer gave up (Machine.specializeClosure)
+    specialized :: TVar (M.Map Reference (Maybe (Reference, [Val]))),
+    specializations :: TVar Specializations,
+    -- whether the code of a reference may run while specializing: it reaches
+    -- no builtin that can do IO or touch mutable state (Machine.knownRunnable)
+    runnableRefs :: TVar (M.Map Reference Bool),
+    -- the codebase's name for a loaded group, when the loader knew one
+    -- (ucm's loadDeps); code loaded at run time has none. Only for showing
+    -- code: the specializer names residual functions after them.
+    combNames :: TVar (M.Map Reference Data.Text.Text),
     -- Combs which we're allowed to cache after evaluating
     cacheableCombs :: TVar (EnumSet Word64),
     optInfos :: TVar (OptInfos Reference Symbol),
@@ -236,10 +284,14 @@ baseCCache jit sandboxed = do
         snd (attachNativeCells cells uncelled)
           & absurdCombs
           & resolveCombs Nothing
-  CCache sandboxed noTrace ()
+  CCache sandboxed noTrace plainIR ()
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
+    <*> newTVarIO mempty
+    <*> newTVarIO mempty
+    <*> newTVarIO mempty
+    <*> newTVarIO mempty
     <*> newTVarIO mempty
     <*> newTVarIO cacheableCombs
     <*> newTVarIO builtinOptInfo
@@ -255,7 +307,7 @@ baseCCache jit sandboxed = do
   where
     builtinFieldNumbering = mempty
     cacheableCombs = mempty
-    noTrace _ _ = NoTrace
+    noTrace _ _ _ = NoTrace
     ftm = 1 + maximum builtinTermNumbering
     -- No builtin record schemas yet
     frs = 1

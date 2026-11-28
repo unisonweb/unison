@@ -562,6 +562,8 @@ data Prim1
   | CVLD -- validate
   | VALU -- value
   | TLTT --  Term.Link.toText
+  | SPEC -- specialize a closure on what it has captured
+  | RTIR -- runtime.ir
   -- debug
   | DBTX -- debug text
   | SDBL -- sandbox link list
@@ -1351,13 +1353,16 @@ data Ctx v
 -- than stack positions.
 data RCtx v = RCtx
   { rctxCombs :: M.Map v Word64,
+    -- | how many arguments each of the group's functions takes, so that a
+    -- call with exactly that many can be a direct one ('emitFunction')
+    rctxArities :: M.Map v Int,
     -- | for a lambda the explosion rewrote: its unoptimized form, which
     -- the frames of a continuation are written out as ('deoptOf')
     rctxBase :: Maybe (BaseInfo v)
   }
 
 emptyRCtx :: RCtx v
-emptyRCtx = RCtx M.empty Nothing
+emptyRCtx = RCtx M.empty M.empty Nothing
 
 -- | What the emitter of a rewritten lambda knows about the unoptimized
 -- lambda it stands for, for 'deoptOf': the unoptimized body's lets by
@@ -1647,7 +1652,11 @@ emitCombs rns grpr grpn grpnBase (Rec grp ent) = do
     (rvs, cmbs) = unzip grp
     ixs = map (`shiftL` 16) [1 ..]
     lams = (0, ent) : zip ixs cmbs
-    rec = emptyRCtx {rctxCombs = M.fromList $ zip rvs ixs}
+    rec =
+      emptyRCtx
+        { rctxCombs = M.fromList $ zip rvs ixs,
+          rctxArities = M.fromList [(v, length ccs) | (v, Lambda ccs _) <- grp]
+        }
     uniqueLambda (Lambda ccs (TAbss vs bd)) = Lambda ccs (TAbss vs (uniqueBody bd))
 
 -- | The lambdas of a group as the batch's rewrites make them
@@ -2318,7 +2327,11 @@ emitFunction _ _mshape grpr grpn rec ctx (FVar v) as
       App False (Stk i) as
   | Just j <- rctxResolve rec v =
       let cix = CIx grpr grpn j
-       in App False (Env cix cix) as
+       in -- a function of the group called with all its arguments: a
+          -- direct call, as of a top-level one (FComb below)
+          if M.lookup v (rctxArities rec) == Just (countArgs as)
+            then Call False cix cix as
+            else App False (Env cix cix) as
   | otherwise = emitSectionVErr v
 emitFunction rns _mshape _grpr _ _ _ (FComb r) as
   | Just k <- anum rns r,
@@ -2622,6 +2635,8 @@ emitPOp ANF.TLTT = emitP1 TLTT
 emitPOp ANF.CVLD = emitP1 CVLD
 emitPOp ANF.LOAD = emitP1 LOAD
 emitPOp ANF.VALU = emitP1 VALU
+emitPOp ANF.SPEC = emitP1 SPEC
+emitPOp ANF.RTIR = emitP1 RTIR
 emitPOp ANF.SDBX = emitP2 SDBX
 emitPOp ANF.SDBL = emitP1 SDBL
 emitPOp ANF.SDBV = emitP2 SDBV

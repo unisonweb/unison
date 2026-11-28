@@ -11,6 +11,7 @@ module Unison.Runtime.Decompile
   )
 where
 
+import Data.List (unsnoc)
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
 import Data.Set (singleton)
@@ -98,11 +99,16 @@ type DecompResult v = (Set DecompError, Term v ())
 decompile ::
   forall v.
   (Var v) =>
+  -- the closure a specialized group was made from (CCache's
+  -- specializations): its combinator, how many arguments it had, and how
+  -- many constants the specialized closure holds after them, for showing
+  -- it as @specialize f x@
+  (Reference -> Maybe (CombIx, Int, Int)) ->
   (Reference -> Maybe Reference) ->
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Val ->
   DecompResult v
-decompile backref topTerms = \case
+decompile spec backref topTerms = \case
   CharVal c -> pure (char () c)
   NatVal n -> pure (nat () n)
   IntVal i -> pure (int () (fromIntegral i))
@@ -114,28 +120,17 @@ decompile backref topTerms = \case
       | TT.isBooleanTag t -> tag2bool (maskTags t)
     (DataC t [b])
       | TT.isAnyTag t ->
-          app () (builtin () "Any.Any") <$> decompile backref topTerms b
+          app () (builtin () "Any.Any") <$> decompile spec backref topTerms b
     (DataC t vs) ->
       -- the type's reference, from the process's registry
-      apps' (con (TN.typeReference (TT.typeTag t)) (maskTags t)) <$> traverse (decompile backref topTerms) vs
+      apps' (con (TN.typeReference (TT.typeTag t)) (maskTags t)) <$> traverse (decompile spec backref topTerms) vs
     (RecordC shape vals) -> do
-      vs' <- traverse (decompile backref topTerms) vals
+      vs' <- traverse (decompile spec backref topTerms) vals
       -- The field names are carried by the record's shape, in the same
       -- ascending order as its slots.
       pure . Term.record () . Map.fromList $
         zip (V.toList (shapeFields shape)) (V.toList vs')
-    (PApV (CIx rf rt k) _ vs)
-      | rf == Builtin "jumpCont" ->
-          err Cont $ bug "<Continuation>"
-      | Just t <- topTerms rt k ->
-          Term.etaReduceEtaVars . substitute t
-            <$> traverse (decompile backref topTerms) vs
-      | k > 0,
-        Just _ <- topTerms rt 0 ->
-          err (UnkLocal rf k) $ bug "<Unknown>"
-      | Builtin nm <- rf ->
-          apps' (builtin () nm) <$> traverse (decompile backref topTerms) vs
-      | otherwise -> err (UnkComb rf) $ ref () rf
+    (PApV cix _ vs) -> pap cix vs
     (PAp (CIx rf _ _) _ _) ->
       err (BadPAp rf) $ bug "<Unknown>"
     BlackHole -> err Exn $ bug "<Exception>"
@@ -144,9 +139,30 @@ decompile backref topTerms = \case
     (TextC t) -> pure $ text () (Text.toText t)
     (BytesC b) -> pure $ decompileBytes b
     (ListC s) ->
-      list' () . Seq.fromList <$> traverse (decompile backref topTerms) (toList s)
+      list' () . Seq.fromList <$> traverse (decompile spec backref topTerms) (toList s)
     (Foreign f) ->
-      decompileForeign backref topTerms f
+      decompileForeign spec backref topTerms f
+  where
+    -- a specialized closure holds the arguments of the closure it was made
+    -- from, which is shown as that closure without its last argument,
+    -- specialized on that argument
+    pap (CIx rf rt k) vs
+      | Just (ocix, n, e) <- spec rf,
+        Just (fs, x) <- unsnoc (take n vs ++ drop (n + e) vs) = do
+          f <- pap ocix fs
+          x <- decompile spec backref topTerms x
+          pure $ apps' (builtin () "specialize") [f, x]
+      | rf == Builtin "jumpCont" =
+          err Cont $ bug "<Continuation>"
+      | Just t <- topTerms rt k =
+          Term.etaReduceEtaVars . substitute t
+            <$> traverse (decompile spec backref topTerms) vs
+      | k > 0,
+        Just _ <- topTerms rt 0 =
+          err (UnkLocal rf k) $ bug "<Unknown>"
+      | Builtin nm <- rf =
+          apps' (builtin () nm) <$> traverse (decompile spec backref topTerms) vs
+      | otherwise = err (UnkComb rf) $ ref () rf
 
 tag2bool :: (Var v) => Word64 -> DecompResult v
 tag2bool 0 = pure (boolean () False)
@@ -163,11 +179,16 @@ substitute = align []
 
 decompileForeign ::
   (Var v) =>
+  -- the closure a specialized group was made from (CCache's
+  -- specializations): its combinator, how many arguments it had, and how
+  -- many constants the specialized closure holds after them, for showing
+  -- it as @specialize f x@
+  (Reference -> Maybe (CombIx, Int, Int)) ->
   (Reference -> Maybe Reference) ->
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Foreign ->
   DecompResult v
-decompileForeign backref topTerms = \case
+decompileForeign spec backref topTerms = \case
   WrapHashAlgorithm h -> pure $ decompileHashAlgorithm h
   WrapReferent l ->
     pure . termLink () $ case l of
@@ -176,7 +197,7 @@ decompileForeign backref topTerms = \case
   WrapReference l -> pure $ typeLink () l
   WrapArray a ->
     app () (ref () iarrayFromListRef) . list ()
-      <$> traverse (decompile backref topTerms) (toList a)
+      <$> traverse (decompile spec backref topTerms) (toList a)
   WrapByteArray a ->
     pure $
       app
@@ -184,7 +205,7 @@ decompileForeign backref topTerms = \case
         (ref () ibarrayFromBytesRef)
         (decompileBytes . By.fromWord8s $ byteArrayToList a)
   WrapMap m -> do
-    let decompileEntry k v = pair <$> decompile backref topTerms k <*> decompile backref topTerms v
+    let decompileEntry k v = pair <$> decompile spec backref topTerms k <*> decompile spec backref topTerms v
     kvs <- traverse (uncurry decompileEntry) (Map.toList m)
     pure $ app () map_fromList (list () kvs)
   WrapNatural n ->

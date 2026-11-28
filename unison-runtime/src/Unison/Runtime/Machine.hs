@@ -9,6 +9,9 @@ module Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
     Combs,
+    IRPrinter (..),
+    Specializations,
+    plainIR,
     Tracer (..),
     apply0,
     boxSlot,
@@ -28,6 +31,10 @@ module Unison.Runtime.Machine
     refNumsTm,
     refNumsTy,
     reifyValue,
+    runKnown,
+    stateBuiltin,
+    KnownLimits (..),
+    defaultKnownLimits,
     resolveSection,
   )
 where
@@ -38,9 +45,13 @@ import Control.Concurrent.STM as STM
 import Control.Exception
 import Control.Lens
 import Control.Monad.State.Strict
+import Crypto.Hash (Blake2b_256, Digest, hashlazy)
 import Data.Atomics qualified as Atomic
+import Data.Bits (shiftR, (.&.))
+import Data.ByteArray (convert)
+import Data.ByteString.Builder qualified as BB
 import Data.HashMap.Lazy qualified as HM
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, writeIORef)
 import Data.IntSet qualified as IS
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
@@ -59,11 +70,18 @@ import Foreign.Storable qualified as Store
 import GHC.Conc as STM (unsafeIOToSTM)
 import GHC.Float (double2Float, float2Double)
 import GHC.Stack
+import System.Environment (lookupEnv)
+import System.IO (hPutStrLn, stderr)
+import System.IO.Unsafe (unsafePerformIO)
+import System.Timeout (timeout)
+import Unison.ABT.Normalized qualified as ABTN
+import Unison.Hash qualified as Hash
 import Unison.Prelude hiding (Text)
 import Unison.Reference
   ( Reference,
     Reference' (Builtin),
     showShort,
+    pattern Derived,
   )
 import Unison.Referent (Referent, pattern Ref)
 import Unison.ReferentPrime (Referent' (..))
@@ -81,8 +99,13 @@ import Unison.Runtime.ANF as ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
+import Unison.Runtime.ANF.POp (OpKind (..), opKind)
+import Unison.Runtime.ANF.Rehash (rehashGroups)
+import Unison.Runtime.ANF.Serialize (serializeValueForHash)
+import Unison.Runtime.ANF.Specialize qualified as SP
 import Unison.Runtime.Builtin.Decls (exceptionRef)
 import Unison.Runtime.Builtin.Decls qualified as Rf
+import Unison.Runtime.Foreign.Function.Type (ForeignFunc, foreignFuncBuiltinName)
 import Unison.Runtime.JIT (describeExit, initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteAdHocExit, noteOutput, printJITStats, stackSlots)
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.JIT.Exits
@@ -91,6 +114,7 @@ import Unison.Runtime.JIT.Native
 import Unison.Runtime.JIT.Pool (currentPool)
 import Unison.Runtime.Wide (wideOn, widePad, wideWidth)
 import Unison.Util.Deque qualified as Sq
+import Unison.Var qualified as Var
 import Unsafe.Coerce (unsafeCoerce)
 #ifdef CODE_SERIAL_CHECK
 import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
@@ -397,6 +421,18 @@ exec env henv !_activeThreads !stk !k _ (Prim1 VALU i) = do
   stk <- bump stk
   pokeBi stk =<< reflectValue env c
   pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 SPEC i) = do
+  v <- peekOff stk i
+  v <- specializeClosure env v
+  stk <- bump stk
+  poke stk v
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 RTIR i) = do
+  v <- peekOff stk i
+  ir <- runtimeIR env v
+  stk <- bump stk
+  pokeBi stk ir
+  pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
   stk <- prim1 env stk op i
   pure (False, henv, stk, k)
@@ -412,7 +448,8 @@ exec env henv !_activeThreads !stk !k _ (Prim2 TRCE i j)
   | otherwise = do
       tx <- peekOffBi stk i
       clo <- peekOff stk j
-      case tracer env True clo of
+      specs <- readTVarIO (specializations env)
+      case tracer env specs True clo of
         NoTrace -> pure ()
         SimpleTrace str -> do
           putStrLn $ "trace: " ++ Util.Text.unpack tx
@@ -2348,8 +2385,618 @@ canonicalizeReferenced ::
 canonicalizeReferenced x = mediate $ recanonicalizeRefs x
 {-# INLINE canonicalizeReferenced #-}
 
+-- | The second half of @specialize@ (ANF/Specialize/design.md): a closure
+-- that has captured something, specialized on all of it. Anything else (a
+-- closure that has captured nothing, a builtin, a value that isn't a
+-- closure) is returned as it is, which is always correct, since a
+-- specialized closure means the same as the closure it was made from. The
+-- closure is also returned as it is when the partial evaluator gives up.
+--
+-- The specialized closure is an ordinary closure over a generated group,
+-- so equality, ordering, hashing and serialization are the existing ones.
+-- It holds the arguments of the closure it was made from, in the same
+-- order, then any constants the generated code needs: ANF has no node for
+-- an arbitrary value, so a known value that isn't a literal is a parameter
+-- (ANF.Specialize.threadConsts).
+--
+-- The group's reference is a hash of the generated code, as
+-- @Code.validateLinks@ computes it ('hashedGroup'), and @Code.lookup@
+-- finds the group like any other loaded code, so another process gets it
+-- by the usual code sync.
+--
+-- 'specialized' remembers what was made of each closure, by a hash of the
+-- closure ('closureKey'), so specializing the same closure twice in this
+-- process does the work once and gives equal closures.
+--
+-- 'specializations' remembers, per generated group, the original
+-- combinator and how many arguments its closure had, only for showing a
+-- specialized closure as @specialize f x@ (the decompiler, @runtime.ir@).
+-- Neither table leaves the process.
+specializeClosure :: CCache p -> Val -> IO Val
+specializeClosure cc val = case val of
+  BoxedVal (PAp cix@(CIx r _ i) _ args)
+    | captured <- segToList args,
+      not (null captured),
+      -- only a lambda's entry, never a section after a let in it
+      i .&. 0xffff == 0 -> do
+        groups <- readTVarIO (intermed cc)
+        names <- readTVarIO (combNames cc)
+        case M.lookup r groups >>= lambdaGroup (fromIntegral (i `shiftR` 16)) of
+          Nothing -> pure val
+          Just _ -> do
+            key <- closureKey cc val
+            remembered <- M.lookup key <$> readTVarIO (specialized cc)
+            let remember made = atomically . modifyTVar' (specialized cc) $ M.insert key made
+            made <- case remembered of
+              Just known -> pure (fmap (\(generated, extras) -> (generated, extras, False)) known)
+              Nothing -> do
+                walked <- SP.specializeLambda (specEnv cc groups names) (specLimits (M.lookup r groups) captured) r i captured
+                when specializeDebug $ do
+                  (runs, cut, failed, loads) <- readIORef knownCounts
+                  ngroups <- M.size <$> readTVarIO (intermed cc)
+                  hPutStrLn stderr ("[specialize] known code so far: " ++ show runs ++ " runs, " ++ show cut ++ " cut off by time, " ++ show failed ++ " failed, " ++ show loads ++ " terms loaded; " ++ show ngroups ++ " groups in the cache")
+                case walked of
+                  Left why -> do
+                    when specializeDebug $
+                      hPutStrLn stderr ("[specialize] " ++ show r ++ ": gave up (" ++ why ++ "), keeping the original closure")
+                    Nothing <$ remember Nothing
+                  Right (walkedGroup, extras) -> do
+                    let (generated, grp) = hashedGroup key walkedGroup
+                    when specializeDebug $ do
+                      hPutStrLn stderr ("[specialize] " ++ show r ++ ": " ++ show (length (ANF.group grp)) ++ " residual functions")
+                      forM_ extras \c -> hPutStrLn stderr ("[specialize] constant: " ++ take 160 (drop 60 (show c)))
+                      hPutStrLn stderr (ANF.prettyGroup @Symbol (show generated) grp "")
+                    -- read again: the walk may have specialized, and so
+                    -- loaded, other closures
+                    new <- M.notMember generated <$> readTVarIO (intermed cc)
+                    when new $ do
+                      sands <- readTVarIO (sandbox cc)
+                      let sand = M.findWithDefault mempty r sands
+                      -- no profiler: the group is not a cached value, so
+                      -- loading it runs nothing
+                      cacheAdd0 S.empty [(generated, CodeRep grp Uncacheable)] [(generated, sand)] cc {profiler = ()}
+                    -- only for a group loaded here: generated code that is
+                    -- the same as code already loaded (the function's own,
+                    -- when specializing changed nothing) has that code's
+                    -- reference, and is shown as that code. Two closures
+                    -- may generate the same code; the first is the one shown.
+                    when new . atomically . modifyTVar' (specializations cc) $
+                      M.insert generated (cix, length captured, length extras)
+                    -- constants taken out of a mutable value are this
+                    -- closure's own, though the key and the code are shared
+                    -- with closures holding other mutable values: not
+                    -- remembered, so each such closure is walked
+                    unless (any containsMutable extras) $ remember (Just (generated, extras))
+                    pure (Just (generated, extras, new))
+            case made of
+              Nothing -> pure val
+              Just (generated, extras, new) -> do
+                result <- mkClosure cc generated 0 (captured ++ extras)
+                -- whoever specializes expects the result to be hot: ask the
+                -- JIT for it now rather than after the call threshold (only
+                -- in the on mode: eager compiles it as it is loaded, and off
+                -- never)
+                case result of
+                  Just (BoxedVal (PAp scix (LamI _ _ _ cell) _))
+                    | new,
+                      JIT.On <- JIT.mode (jitConfig (jit cc)) ->
+                        jitRequestGroup (jit cc) (sandboxed cc) (combs cc) (combRefs cc) scix cell
+                  _ -> pure ()
+                pure (fromMaybe val result)
+  _ -> pure val
+  where
+    -- the group with the lambda at index k (0 for the entry, k for the
+    -- k-th local function) as its entry; the local functions stay, since
+    -- the lambda may call them
+    lambdaGroup k (ANF.Rec grp ent)
+      | k == 0 = Just (ANF.Rec grp ent)
+      | k <= length grp = Just (ANF.Rec grp (snd (grp !! (k - 1))))
+      | otherwise = Nothing
+
+-- | What the partial evaluator gets from the runtime
+-- (Unison.Runtime.ANF.Specialize): the groups as they are, and the
+-- interpreter for anything known.
+specEnv :: CCache p -> M.Map Reference (SuperGroup Reference Symbol) -> M.Map Reference DTx.Text -> SP.SpecEnv
+specEnv cc groups names =
+  SP.SpecEnv
+    { SP.seGroup = (`M.lookup` groups),
+      SP.seRun = runKnown cc defaultKnownLimits,
+      SP.sePrim = runPrim cc,
+      SP.seData = mkData,
+      SP.seClosure = mkClosure cc,
+      SP.seBoundary = Builtin "specialize.boundary",
+      SP.seRunTerm = runTerm cc,
+      SP.seCallsBack = (`S.member` callingBack),
+      SP.seName = (`M.lookup` names),
+      SP.seNote = \note -> when specializeDebug (hPutStrLn stderr ("[specialize] " ++ note))
+    }
+
+-- | The builtins that can call back into Unison code, from their code:
+-- those that apply or force one of their arguments, resume a continuation
+-- or fork, run a transaction or catch.
+callingBack :: S.Set Reference
+callingBack =
+  S.fromList [r | (r, (_, ANF.Lambda _ (ABTN.TAbss vs body))) <- M.toList builtinLookup, callsBack (S.fromList vs) body]
+  where
+    callsBack vs = any (calling vs) . anfNodes
+    calling vs = \case
+      ANF.AApp fn _ -> case fn of
+        ANF.FVar f -> S.member f vs
+        ANF.FCont _ -> True
+        ANF.FPrim (Left op) -> opKind op == CallingOp
+        ANF.FPrim (Right _) -> False
+        ANF.FComb _ -> False
+        ANF.FCon _ _ -> False
+        ANF.FReq _ _ -> False
+        ANF.FRec _ -> False
+        ANF.FRecSet _ -> False
+        ANF.FWorker _ _ -> False
+        ANF.FYield -> False
+      ANF.AFrc f -> S.member f vs
+      ANF.ALet {} -> False
+      ANF.AName {} -> False
+      ANF.ALit _ -> False
+      ANF.ABLit _ -> False
+      ANF.AMatch {} -> False
+      ANF.AShift {} -> False
+      ANF.AHnd {} -> False
+      ANF.AVar _ -> False
+      ANF.ADiscard _ -> False
+      ANF.ALocal {} -> False
+      ANF.AUpdate {} -> False
+      ANF.ABox _ -> False
+
+-- | A term run on the interpreter with values for its free variables,
+-- through a group of its own whose parameters they are, loaded the first
+-- time (its reference comes from the code). Nothing when the term can't run
+-- safely ('runKnown') or its code can't be loaded.
+runTerm :: CCache p -> [(Symbol, ANF.Mem)] -> ANF.ANormal Reference Symbol -> [Val] -> IO (Maybe Val)
+runTerm cc fvs t vs =
+  fmap (either (const Nothing) id) . UnliftIO.tryAny $ do
+    groups <- readTVarIO (intermed cc)
+    unless (M.member ref groups) $ do
+      when specializeDebug $ UnliftIO.modifyIORef' knownCounts (\(r, t, f, l) -> (r, t, f, l + 1))
+      cacheAdd0 S.empty [(ref, CodeRep grp Uncacheable)] [] cc {profiler = ()}
+    mkClosure cc ref 0 [] >>= \case
+      Nothing -> pure Nothing
+      Just f -> runKnown cc defaultKnownLimits f vs
+  where
+    grp = ANF.Rec [] (ANF.Lambda (map snd fvs) (ABTN.TAbss (map fst fvs) t))
+    ref =
+      let digest :: Digest Blake2b_256
+          digest = hashlazy . BB.toLazyByteString $ BB.string7 ("unison specialize term\0" ++ show grp)
+       in Derived (Hash.fromByteString (convert digest)) 0
+
+-- | A data value from its constructor and fields.
+mkData :: Reference -> TT.CTag -> [Val] -> IO (Maybe Val)
+mkData r t vs = do
+  rty <- TN.typeNumberMap
+  case M.lookup r rty of
+    Nothing -> pure Nothing
+    Just n -> Just . boxedVal . formDataReplaced (packTags (TT.RTag n) t) <$> traverseListToSeg pure vs
+
+-- | A closure of a group's lambda, by index, over the given arguments.
+mkClosure :: CCache p -> Reference -> Word64 -> [Val] -> IO (Maybe Val)
+mkClosure cc r i vs = do
+  rtm <- readTVarIO (refTm cc)
+  cmbs <- readTVarIO (combs cc)
+  case M.lookup r rtm of
+    Nothing -> pure Nothing
+    Just n ->
+      let cix = CIx r n i
+       in case rCombSection cmbs cix of
+            RComb (Comb rcomb@LamI {} _) ->
+              Just . boxedVal . PAp cix rcomb <$> traverseListToSeg pure vs
+            _ -> pure Nothing
+
+-- | A primitive or foreign function applied to known arguments, run on the
+-- interpreter through a group of its own that applies it to its
+-- parameters, loaded the first time. Primitives with effects, ones on
+-- mutable state and ones yielding a sum don't run.
+runPrim :: CCache p -> Either ANF.POp ForeignFunc -> [Val] -> IO (Maybe Val)
+runPrim cc p vs
+  | not allowed = pure Nothing
+  | otherwise = do
+      groups <- readTVarIO (intermed cc)
+      unless (M.member ref groups) $
+        cacheAdd0 S.empty [(ref, CodeRep grp Uncacheable)] [] cc {profiler = ()}
+      mkClosure cc ref 0 [] >>= \case
+        Nothing -> pure Nothing
+        Just f -> runKnown cc defaultKnownLimits f vs
+  where
+    n = length vs
+    xs = [Var.freshenId (fromIntegral k) (Var.named "x") | k <- [1 .. n]] :: [Symbol]
+    grp = ANF.Rec [] (ANF.Lambda (replicate n ANF.BX) (ABTN.TAbss xs (ANF.TApp (ANF.FPrim p) xs)))
+    ref =
+      let digest :: Digest Blake2b_256
+          digest = hashlazy . BB.toLazyByteString $ BB.string7 ("unison specialize primitive\0" ++ show p ++ "\0" ++ show n)
+       in Derived (Hash.fromByteString (convert digest)) 0
+    allowed = case p of
+      Left op -> opKind op == PureOp
+      Right ff ->
+        not (S.member ff sandboxedForeignFuncs)
+          && not (stateBuiltin (Builtin (foreignFuncBuiltinName ff)))
+
+-- | The key 'specialized' remembers a closure by: a hash of the
+-- closure, as the value hash serializes it, under a prefix that keeps it
+-- apart from any codebase hash. A value that can't be serialized (a mutable
+-- reference, a handle) is hashed as a placeholder: the code doesn't depend
+-- on which it is, since such values never enter known computation
+-- ('runKnown'), and the closures still differ, each holding its own.
+-- A closure that can't be reflected for another reason gets a fresh
+-- reference.
+closureKey :: CCache p -> Val -> IO Reference
+closureKey cc val = do
+  bytes <-
+    -- (tryAny passes asynchronous exceptions on)
+    UnliftIO.tryAny (reflectValueWith True cc val >>= evaluate . serializeValueForHash . dereference) >>= \case
+      Right bs -> pure bs
+      Left _ -> do
+        u <- atomicModifyIORef' freshSpecializations \n -> (n + 1, n)
+        pure . BB.toLazyByteString $ BB.string7 "fresh" <> BB.word64BE u
+  let digest :: Digest Blake2b_256
+      digest = hashlazy (BB.toLazyByteString (BB.string7 "unison specialize\0") <> bytes)
+  pure $ Derived (Hash.fromByteString (convert digest)) 0
+
+-- | A generated group under the reference @Code.validateLinks@ computes
+-- for it: a hash of its code. The reference given is only a placeholder
+-- for the hashing, which wants one.
+hashedGroup :: Reference -> SuperGroup Reference Symbol -> (Reference, SuperGroup Reference Symbol)
+hashedGroup placeholder grp = case rehashGroups (M.singleton placeholder grp) of
+  Right (renamed, grps)
+    | Just generated <- M.lookup placeholder renamed,
+      Just hashed <- M.lookup generated grps ->
+        (generated, hashed)
+  _ -> (placeholder, grp)
+
+-- * Running known code
+
+--
+-- What the specializer computes from known values it computes on the
+-- interpreter (ANF/Specialize/design.md, "What runs at specialization time").
+
+-- | A profiler whose ticker counts calls down and aborts at zero: the
+-- fuel for running known code. Native code never calls the ticker, which
+-- is why 'runKnown' has a time limit too.
+newtype Fuel = Fuel (IORef Int)
+
+data OutOfFuel = OutOfFuel
+  deriving (Show)
+
+instance Exception OutOfFuel
+
+instance RuntimeProfiler Fuel where
+  newtype Ticker Fuel = FuelTicker (IORef Int)
+  startTicker (Fuel r) = pure (FuelTicker r, pure ())
+  checkTicker (FuelTicker r) _ _ = do
+    n <- readIORef r
+    if n <= 0 then throwIO OutOfFuel else writeIORef r $! n - 1
+  {-# INLINE checkTicker #-}
+
+-- | How much known code may run: calls (the fuel) and microseconds.
+data KnownLimits = KnownLimits
+  { knownFuel :: !Int,
+    knownMicros :: !Int
+  }
+
+-- | The stack a run of known code starts with, in slots besides its
+-- arguments.
+knownStackSlots :: Int
+knownStackSlots = 32
+
+defaultKnownLimits :: KnownLimits
+defaultKnownLimits = KnownLimits {knownFuel = 1000000, knownMicros = 200000}
+
+-- | A known function applied to known arguments, run now on the
+-- interpreter, or Nothing when that can't be done safely: the code could
+-- have an effect or read mutable state ('knownRunnable'), or it performs a
+-- request nothing in it handles, fails, or runs out of fuel or time (a
+-- builtin that runs no Unison code has no time limit). A
+-- Nothing is never an error: the specializer then works through the call
+-- itself. Fewer arguments than the function takes give a closure, more
+-- apply the result to the rest.
+runKnown :: CCache p -> KnownLimits -> Val -> [Val] -> IO (Maybe Val)
+runKnown cc lim f args
+  -- which mutable value it is mustn't shape the code (closureKey)
+  | any containsMutable (f : args) = pure Nothing
+  | otherwise =
+      knownRunnable cc (f : args) >>= \case
+        False -> pure Nothing
+        True -> do
+          fuel <- newIORef (knownFuel lim)
+          result <- newIORef Nothing
+          -- a small stack: nearly every run is one builtin, and a stack
+          -- grows when it has to
+          stk0 <- alloc (min (stackSlots (jit cc)) (knownStackSlots + length args))
+          stk <- foldM (\stk v -> bump stk >>= \stk -> stk <$ poke stk v) stk0 args
+          let env = cc {profiler = Fuel fuel}
+              k0 = CB . Hook $ \xstk -> peek (packXStack xstk) >>= writeIORef result . Just
+              -- the k-th argument sits at offset n - 1 - k from the top
+              as = case reverse [0 .. length args - 1] of
+                [] -> ZArgs
+                [i] -> VArg1 i
+                [i, j] -> VArg2 i j
+                is -> VArgN $ PA.primArrayFromList is
+              -- A builtin that runs no Unison code needs no time limit,
+              -- and setting one up costs more than running it: nearly
+              -- every run is one of these (an equality, an arithmetic
+              -- operation on known numbers).
+              limited
+                | plainBuiltin = fmap Just
+                | otherwise = timeout (knownMicros lim)
+              plainBuiltin = case f of
+                BoxedVal (PAp (CIx r@(Builtin _) _ 0) _ captured)
+                  | S.notMember r callingBack,
+                    Just arity <- M.lookup r builtinArities ->
+                      length (segToList captured) + length args <= arity
+                _ -> False
+          outcome <-
+            limited . UnliftIO.tryAny $ do
+              (tick, cancel) <- startTicker (profiler env)
+              apply tick env mempty Nothing stk k0 False as f `finally` cancel
+          when specializeDebug $ case outcome of
+            Nothing -> UnliftIO.modifyIORef' knownCounts (\(r, t, f, l) -> (r + 1, t + 1, f, l))
+            Just (Left _) -> UnliftIO.modifyIORef' knownCounts (\(r, t, f, l) -> (r + 1, t, f + 1, l))
+            _ -> UnliftIO.modifyIORef' knownCounts (\(r, t, f, l) -> (r + 1, t, f, l))
+          case outcome of
+            Just (Right ()) -> readIORef result
+            _ -> pure Nothing
+
+-- | Whether known code may run now: the values, the code of every closure
+-- in them, and all the code that reaches, use no tracked builtin (the ones
+-- that can do IO, which the sandbox map lists) and no operation on mutable
+-- state ('stateBuiltin'). Conservative: a branch never taken counts. A
+-- verdict is remembered per reference ('runnableRefs').
+knownRunnable :: CCache p -> [Val] -> IO Bool
+knownRunnable cc vals = do
+  let roots = S.toList (foldMap valueCodeRefs vals)
+  known <- readTVarIO (runnableRefs cc)
+  case traverse (`M.lookup` known) roots of
+    Just verdicts -> pure (and verdicts)
+    Nothing -> do
+      groups <- readTVarIO (intermed cc)
+      sands <- readTVarIO (sandbox cc)
+      let unsafe r = case r of
+            Builtin _ -> M.member r sands || stateBuiltin r
+            _ -> M.notMember r groups
+          reach seen [] = seen
+          reach seen (r : rs)
+            | S.member r seen = reach seen rs
+            | Just True <- M.lookup r known = reach seen rs
+            | otherwise =
+                reach (S.insert r seen) $
+                  maybe [] ANF.groupTermLinks (M.lookup r groups) ++ rs
+          reached = reach S.empty roots
+          ok = not (any unsafe reached)
+      -- everything reached reaches only what is reached, so a good verdict
+      -- holds for all of it; a bad one only for the roots
+      atomically . modifyTVar' (runnableRefs cc) $ \m ->
+        if ok
+          then M.union m (M.fromSet (const True) reached)
+          else M.union m (M.fromList [(r, False) | r <- roots])
+      pure ok
+
+-- | The specializer's limits for a closure. The code it may generate is a
+-- multiple of the size of its input: the code of the function's group
+-- and the known values, since code specialized on a value (an interpreter
+-- on a program) grows with it.
+specLimits :: Maybe (SuperGroup Reference Symbol) -> [Val] -> SP.SpecLimits
+specLimits grp captured =
+  SP.defaultSpecLimits
+    { SP.slOutput = outputFactor * (maybe 0 groupSize grp + foldl' (valueSize 10000) 0 captured),
+      SP.slJoin = specializeJoin,
+      SP.slBridge = specializeBridge
+    }
+  where
+    outputFactor = 20
+    groupSize (ANF.Rec fs ent) = sum (lamSize <$> ent : map snd fs)
+    lamSize (ANF.Lambda _ body) = length (anfNodes body)
+
+-- | Every node of a term.
+anfNodes :: ANF.ANormal Reference Symbol -> [ANF.ANormalF Reference Symbol (ANF.ANormal Reference Symbol)]
+anfNodes = \case
+  ABTN.TAbs _ b -> anfNodes b
+  ABTN.TTm x -> x : foldMap anfNodes x
+
+-- | How many values a value is made of, added to a count, and no further
+-- than the cap: a constructor and each of its fields, a closure and what
+-- it captured, a list and its elements.
+valueSize :: Int -> Int -> Val -> Int
+valueSize cap n0 v0 = val n0 v0
+  where
+    val n v
+      | n >= cap = n
+      | otherwise = case v of
+          BoxedVal c -> clo (n + 1) c
+          UnboxedVal {} -> n + 1
+    clo n = \case
+      PAp _ _ (_, bseg) -> foldl' (\m c -> if m >= cap then m else clo (m + 1) c) n bseg
+      DataC _ vs -> foldl' val n vs
+      RecordC _ vs -> foldl' val n vs
+      ListC vs -> foldl' val n vs
+      -- counted as one value each, whatever they hold
+      Captured {} -> n
+      TextC _ -> n
+      BytesC _ -> n
+      Foreign _ -> n
+      BlackHole -> n
+      UnboxedTypeTag _ -> n
+      Affine {} -> n
+
+-- | Whether a value holds anything that can't be serialized: a mutable
+-- reference, a mutable array, a handle.
+containsMutable :: Val -> Bool
+containsMutable = \case
+  BoxedVal c -> go c
+  UnboxedVal {} -> False
+  where
+    go = \case
+      PAp _ _ (_, bseg) -> any go bseg
+      DataC _ vs -> any containsMutable vs
+      RecordC _ vs -> any containsMutable vs
+      Captured _ _ (_, bseg) -> any go bseg
+      ListC vs -> any containsMutable vs
+      Foreign f -> case f of
+        WrapArray a -> any containsMutable a
+        WrapMap m -> any (\(x, y) -> containsMutable x || containsMutable y) (M.toList m)
+        WrapReferent _ -> False
+        WrapReference _ -> False
+        WrapValue _ -> False
+        WrapCode _ -> False
+        WrapByteArray _ -> False
+        WrapInteger _ -> False
+        WrapNatural _ -> False
+        -- any other foreign value counts as mutable
+        _ -> True
+      TextC _ -> False
+      BytesC _ -> False
+      UnboxedTypeTag _ -> False
+      -- not values a program holds; counted as mutable to be safe
+      BlackHole -> True
+      Affine {} -> True
+
+-- | The builtins that operate on mutable state, which known code may not
+-- use: its result could change between now and run time. The builtins
+-- that do IO are in the sandbox's list instead ('knownRunnable').
+--
+-- This library can't see the types of the builtins, which say which ones
+-- these are, so the list is by name; a test compares it with the types
+-- (Unison.Test.Runtime.Specialize.refusedTest) and fails when a builtin
+-- with an ability in its type is in neither list.
+stateBuiltin :: Reference -> Bool
+stateBuiltin = \case
+  Builtin t -> any (`DTx.isPrefixOf` t) statePrefixes
+  Derived {} -> False
+  where
+    statePrefixes =
+      [ "Ref.",
+        "Scope.",
+        "MutableArray.",
+        "MutableByteArray.",
+        "ImmutableArray.copyTo!",
+        "ImmutableByteArray.copyTo!",
+        "FFI.",
+        "TVar.",
+        "MVar.",
+        "Promise.",
+        "IO.ref",
+        "STM."
+      ]
+
+-- | The code a value refers to: the combinators of its closures and
+-- continuations, through data, lists, immutable arrays and maps (which
+-- pure code can read). Other foreign values (refs, mutable arrays) are
+-- leaves: reading them takes an operation 'stateBuiltin' rules out.
+valueCodeRefs :: Val -> S.Set Reference
+valueCodeRefs = \case
+  BoxedVal c -> go c
+  UnboxedVal {} -> mempty
+  where
+    go = \case
+      PAp (CIx r _ _) _ (_, bseg) -> S.insert r (foldMap go bseg)
+      DataC _ vs -> foldMap valueCodeRefs vs
+      RecordC _ vs -> foldMap valueCodeRefs vs
+      Captured k _ (_, bseg) -> contTermRefs S.singleton k <> foldMap go bseg
+      ListC vs -> foldMap valueCodeRefs vs
+      Foreign (WrapArray a) -> foldMap valueCodeRefs a
+      Foreign (WrapMap m) -> foldMap (\(x, y) -> valueCodeRefs x <> valueCodeRefs y) (M.toList m)
+      Foreign _ -> mempty
+      TextC _ -> mempty
+      BytesC _ -> mempty
+      BlackHole -> mempty
+      UnboxedTypeTag _ -> mempty
+      Affine {} -> mempty
+
+-- | @UNISON_SPECIALIZE_DEBUG@: say on stderr what each specialization
+-- made, or why it gave up.
+specializeDebug :: Bool
+specializeDebug = unsafePerformIO (maybe False (not . null) <$> lookupEnv "UNISON_SPECIALIZE_DEBUG")
+{-# NOINLINE specializeDebug #-}
+
+-- | @UNISON_SPECIALIZE_BRIDGE=off@: a call of an unknown function under a
+-- fused handler keeps the handler, to compare.
+specializeBridge :: Bool
+specializeBridge = unsafePerformIO ((/= Just "off") <$> lookupEnv "UNISON_SPECIALIZE_BRIDGE")
+{-# NOINLINE specializeBridge #-}
+
+-- | @UNISON_SPECIALIZE_JOIN=off@: no join points, the code after an
+-- unknown match under a fused handler copied into each arm, to compare.
+specializeJoin :: Bool
+specializeJoin = unsafePerformIO ((/= Just "off") <$> lookupEnv "UNISON_SPECIALIZE_JOIN")
+{-# NOINLINE specializeJoin #-}
+
+-- | For @UNISON_SPECIALIZE_DEBUG@: known code run, of those the runs cut
+-- off by the time limit and the ones that failed or ran out of fuel, and
+-- known terms loaded as code to run them.
+knownCounts :: IORef (Int, Int, Int, Int)
+knownCounts = unsafePerformIO (newIORef (0, 0, 0, 0))
+{-# NOINLINE knownCounts #-}
+
+freshSpecializations :: IORef Word64
+freshSpecializations = unsafePerformIO (newIORef 0)
+{-# NOINLINE freshSpecializations #-}
+
+-- | What @runtime.ir@ shows for a value: for a closure, the code the
+-- runtime runs for it, which is its group's ANF after the replacements,
+-- the optimizations and the emitter's rewrites ('loadBatch',
+-- 'rewrittenLambdas', as `ir.optimized` in ucm shows it, without names),
+-- and the values it has captured; for anything else, its reflection.
+runtimeIR :: CCache p -> Val -> IO Util.Text.Text
+runtimeIR cc val = fmap (Util.Text.pack . ($ "")) $ case val of
+  BoxedVal (PAp (CIx r _ i) _ args) -> do
+    groups <- readTVarIO (intermed cc)
+    opts <- readTVarIO (optInfos cc)
+    specs <- readTVarIO (specializations cc)
+    captured <- traverse reflectOrSay (segToList args)
+    let comment = foldr (\l rest -> showString "-- " . showString l . showString "\n" . rest) id . lines
+        origin = case M.lookup r specs of
+          Just (CIx o _ oi, _, _)
+            | Nothing <- irValue (irPrinter cc) specs val ->
+                showString "-- specialization of " . shows o . showString " " . shows oi . showString "\n"
+          _ -> id
+        closure = case irValue (irPrinter cc) specs val of
+          Just s -> comment s
+          Nothing ->
+            showString "-- closure of "
+              . shows r
+              . showString " "
+              . shows i
+              . showString ", captured:\n"
+              . foldr (\v rest -> showString "--   " . showString v . showString "\n" . rest) id captured
+    pure . (origin .) . (closure .) $ case M.lookup r groups of
+      Nothing -> showString "-- no intermediate code (a builtin)\n"
+      Just g ->
+        let (arities, inls) = opts
+            LoadedBatch opt _ b = loadBatch (M.delete r arities, M.delete r inls) groups (M.singleton r g)
+         in case M.findWithDefault g r opt of
+              og@(ANF.Rec ogrp _) ->
+                -- the optimized group's local functions: optimization adds
+                -- some (an affine handler's matcher)
+                showString (irCombs (irPrinter cc) specs r (fst <$> ogrp) (rewrittenLambdas b r og))
+  _ -> do
+    specs <- readTVarIO (specializations cc)
+    case irValue (irPrinter cc) specs val of
+      Just s -> pure $ showString s . showString "\n"
+      Nothing -> do
+        v <- reflectOrSay val
+        pure $ showString v . showString "\n"
+  where
+    -- a value that can't be reflected (a mutable reference, say) is named,
+    -- not shown
+    reflectOrSay v =
+      UnliftIO.tryAny (reflectValue cc v >>= \rv -> let s = show (dereference rv) in s <$ evaluate (length s)) <&> \case
+        Right s -> s
+        Left _ -> "<a value that can't be reflected>"
+
 reflectValue :: CCache p -> Val -> IO (Referenced ANF.Value)
-reflectValue env val = do
+reflectValue = reflectValueWith False
+
+-- | Reflection, with each foreign value that can't be serialized (a mutable
+-- reference, a handle) written as one placeholder when the flag is set,
+-- rather than failing: for the reference of a specialization, whose code
+-- doesn't depend on such values ('closureKey').
+reflectValueWith :: Bool -> CCache p -> Val -> IO (Referenced ANF.Value)
+reflectValueWith placeholders env val = do
   cmbs <- readTVarIO (combs env)
   tyr <- TN.typeReferences
   tmr <- readTVarIO (combRefs env)
@@ -2360,9 +3007,10 @@ reflectValue env val = do
   -- loads and serializes every stored continuation, could not name them)
   bns <- readTVarIO (baseNums env)
   let tmr' = tmr <> EC.mapFromList [(nb, r) | (n, nb) <- EC.mapToList bns, Just r <- [EC.lookup n tmr]]
-  reflectValue0 cmbs bns tyr tmr' val
-    `catch` \(ReflectExn problem) ->
-      die [] $ err problem rendered
+  reflectValue0 placeholders cmbs bns tyr tmr' val
+    `catch` \(ReflectExn problem) -> do
+      specs <- readTVarIO (specializations env)
+      die [] $ err problem (rendered specs)
   where
     err s v =
       "reflectValue: cannot prepare value for serialization: "
@@ -2370,7 +3018,7 @@ reflectValue env val = do
         ++ "\n\nSerialized value:\n\n"
         ++ v
 
-    rendered = case tracer env False val of
+    rendered specs = case tracer env specs False val of
       NoTrace -> show val
       MsgTrace _ _ pre -> pre
       SimpleTrace ugl -> ugl
@@ -2455,13 +3103,14 @@ nativeMapPairs = go []
 -- embedded values (or code), which could be costly. To avoid that
 -- cost, avoid having lots of nested reflected values.
 reflectValue0 ::
+  Bool ->
   EnumMap Word64 MCombs ->
   EnumMap Word64 Word64 ->
   EnumMap Word64 Reference ->
   EnumMap Word64 Reference ->
   Val ->
   IO (Referenced ANF.Value)
-reflectValue0 cmbs bns rty rtm = goV0
+reflectValue0 placeholders cmbs bns rty rtm = goV0
   where
     goIx (CIx _ top i) = flip ANF.GR i <$> resolveTm rtm top
     layout = frameLayout cmbs
@@ -2574,7 +3223,9 @@ reflectValue0 cmbs bns rty rtm = goV0
           <$> traverse (\(k, v) -> (,) <$> goV k <*> goV v) (M.toList m)
       WrapInteger i -> pure (ANF.BigInt i)
       WrapNatural n -> pure (ANF.BigNat n)
-      _ -> reflExn "foreign value"
+      _
+        | placeholders -> pure (ANF.Text (Util.Text.pack "\0unison specialize: a value that can't be serialized\0"))
+        | otherwise -> reflExn "foreign value"
 
 data ReflectExn = ReflectExn String deriving (Show)
 

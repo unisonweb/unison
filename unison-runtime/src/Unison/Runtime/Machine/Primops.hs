@@ -106,6 +106,8 @@ prim1 env !stk DBTX i = prim1wrap (dbtx env) stk i
 prim1 _env !stk CACH _ = pure stk
 prim1 _env !stk LOAD _ = pure stk
 prim1 _env !stk VALU _ = pure stk
+prim1 _env !stk SPEC _ = pure stk
+prim1 _env !stk RTIR _ = pure stk
 {-# INLINE prim1 #-}
 
 -- Wrap an implementation to act on an index on two indices
@@ -499,12 +501,12 @@ tltt stk r =
 {-# INLINE tltt #-}
 
 dbtx :: CCache p -> Stack -> Val -> IO ()
-dbtx env stk val = writeBack stk traced
-  where
-    traced = case tracer env False val of
-      NoTrace -> Nothing
-      MsgTrace _ _ tx -> Just . Left $ UText.pack tx
-      SimpleTrace tx -> Just . Right $ UText.pack tx
+dbtx env stk val = do
+  specs <- readTVarIO (specializations env)
+  writeBack stk $ case tracer env specs False val of
+    NoTrace -> Nothing
+    MsgTrace _ _ tx -> Just . Left $ UText.pack tx
+    SimpleTrace tx -> Just . Right $ UText.pack tx
 {-# INLINE dbtx #-}
 
 addi :: Stack -> Int -> Int -> IO ()

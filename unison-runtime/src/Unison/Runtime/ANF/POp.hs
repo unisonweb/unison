@@ -150,6 +150,8 @@ data POp
   | SDBX -- sandbox
   | VALU -- value
   | TLTT -- Term.Link.toText
+  | SPEC -- specialize a closure on what it has captured
+  | RTIR -- runtime.ir
   -- Debug
   | PRNT -- print
   | INFO -- info
@@ -177,6 +179,176 @@ data POp
   | FGNF -- foreign pointer add finalizer
   | MKCB -- FFI.newCallback
   deriving (Show, Eq, Ord, Enum, Bounded)
+
+-- | What running an operation involves besides computing a result from its
+-- arguments. Every operation is listed, so that a new one has to be
+-- classified before the code compiles.
+data OpKind
+  = -- | nothing: the same arguments always give the same result
+    PureOp
+  | -- | it reads or changes something outside its arguments (the loaded
+    -- code, a mutable reference, the console), or stops the program
+    EffectfulOp
+  | -- | it runs Unison code it is given (and so is effectful as well)
+    CallingOp
+  deriving (Show, Eq)
+
+opKind :: POp -> OpKind
+opKind op = case op of
+  ADDI -> PureOp
+  SUBI -> PureOp
+  MULI -> PureOp
+  DIVI -> PureOp
+  SGNI -> PureOp
+  NEGI -> PureOp
+  MODI -> PureOp
+  POWI -> PureOp
+  SHLI -> PureOp
+  SHRI -> PureOp
+  ANDI -> PureOp
+  IORI -> PureOp
+  XORI -> PureOp
+  COMI -> PureOp
+  INCI -> PureOp
+  DECI -> PureOp
+  LEQI -> PureOp
+  LESI -> PureOp
+  EQLI -> PureOp
+  NEQI -> PureOp
+  TRNC -> PureOp
+  ADDN -> PureOp
+  SUBN -> PureOp
+  DRPN -> PureOp
+  MULN -> PureOp
+  DIVN -> PureOp
+  MODN -> PureOp
+  TZRO -> PureOp
+  LZRO -> PureOp
+  POPC -> PureOp
+  POWN -> PureOp
+  SHLN -> PureOp
+  SHRN -> PureOp
+  ANDN -> PureOp
+  IORN -> PureOp
+  XORN -> PureOp
+  COMN -> PureOp
+  INCN -> PureOp
+  DECN -> PureOp
+  LEQN -> PureOp
+  LESN -> PureOp
+  EQLN -> PureOp
+  NEQN -> PureOp
+  ADDF -> PureOp
+  SUBF -> PureOp
+  MULF -> PureOp
+  DIVF -> PureOp
+  MINF -> PureOp
+  MAXF -> PureOp
+  LEQF -> PureOp
+  LESF -> PureOp
+  EQLF -> PureOp
+  NEQF -> PureOp
+  POWF -> PureOp
+  EXPF -> PureOp
+  SQRT -> PureOp
+  LOGF -> PureOp
+  LOGB -> PureOp
+  ABSF -> PureOp
+  CEIL -> PureOp
+  FLOR -> PureOp
+  TRNF -> PureOp
+  RNDF -> PureOp
+  COSF -> PureOp
+  ACOS -> PureOp
+  COSH -> PureOp
+  ACSH -> PureOp
+  SINF -> PureOp
+  ASIN -> PureOp
+  SINH -> PureOp
+  ASNH -> PureOp
+  TANF -> PureOp
+  ATAN -> PureOp
+  TANH -> PureOp
+  ATNH -> PureOp
+  ATN2 -> PureOp
+  CATT -> PureOp
+  TAKT -> PureOp
+  DRPT -> PureOp
+  SIZT -> PureOp
+  IXOT -> PureOp
+  UCNS -> PureOp
+  USNC -> PureOp
+  EQLT -> PureOp
+  LEQT -> PureOp
+  PAKT -> PureOp
+  UPKT -> PureOp
+  CATS -> PureOp
+  TAKS -> PureOp
+  DRPS -> PureOp
+  SIZS -> PureOp
+  CONS -> PureOp
+  SNOC -> PureOp
+  IDXS -> PureOp
+  BLDS -> PureOp
+  VWLS -> PureOp
+  VWRS -> PureOp
+  SPLL -> PureOp
+  SPLR -> PureOp
+  PAKB -> PureOp
+  UPKB -> PureOp
+  TAKB -> PureOp
+  DRPB -> PureOp
+  IXOB -> PureOp
+  IDXB -> PureOp
+  SIZB -> PureOp
+  FLTB -> PureOp
+  CATB -> PureOp
+  ITOF -> PureOp
+  NTOF -> PureOp
+  ITOT -> PureOp
+  NTOT -> PureOp
+  TTOI -> PureOp
+  TTON -> PureOp
+  TTOF -> PureOp
+  FTOT -> PureOp
+  CAST -> PureOp
+  FORK -> CallingOp
+  EQLU -> PureOp
+  CMPU -> PureOp
+  LEQU -> PureOp
+  LESU -> PureOp
+  EROR -> EffectfulOp
+  MISS -> EffectfulOp
+  CACH -> EffectfulOp
+  LKUP -> EffectfulOp
+  LOAD -> EffectfulOp
+  CVLD -> EffectfulOp
+  SDBX -> EffectfulOp
+  VALU -> EffectfulOp
+  TLTT -> PureOp
+  SPEC -> EffectfulOp
+  RTIR -> EffectfulOp
+  PRNT -> EffectfulOp
+  INFO -> EffectfulOp
+  TRCE -> EffectfulOp
+  DBTX -> EffectfulOp
+  ATOM -> CallingOp
+  TFRC -> CallingOp
+  SDBL -> EffectfulOp
+  SDBV -> EffectfulOp
+  REFN -> EffectfulOp
+  REFR -> EffectfulOp
+  REFW -> EffectfulOp
+  RCAS -> EffectfulOp
+  RRFC -> EffectfulOp
+  TIKR -> EffectfulOp
+  NOTB -> PureOp
+  ANDB -> PureOp
+  IORB -> PureOp
+  KEEP -> EffectfulOp
+  FGNN -> EffectfulOp
+  FGNF -> EffectfulOp
+  MKCB -> EffectfulOp
 
 pOpCode :: POp -> Word16
 pOpCode op = case op of
@@ -332,6 +504,8 @@ pOpCode op = case op of
   FGNN -> 149
   FGNF -> 150
   MKCB -> 151
+  SPEC -> 152
+  RTIR -> 153
 
 pOpAssoc :: [(POp, Word16)]
 pOpAssoc = map (\op -> (op, pOpCode op)) [minBound .. maxBound]

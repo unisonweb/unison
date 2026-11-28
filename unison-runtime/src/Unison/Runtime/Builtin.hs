@@ -11,6 +11,7 @@ module Unison.Runtime.Builtin
   ( builtinTermNumbering,
     builtinTypeNumbering,
     builtinTermBackref,
+    builtinLookup,
     builtinTypeBackref,
     builtinArities,
     builtinOptInfo,
@@ -556,6 +557,30 @@ gen'trace =
 debug'text :: SuperNormal ref Symbol
 debug'text = unop DBTX
 
+-- specialize f x: f x, evaluated as usual (a partial application when f
+-- takes more arguments), then specialized on everything the resulting
+-- closure has captured (Machine.specializeClosure)
+specialize :: SuperNormal ref Symbol
+specialize =
+  binop0 2 $ \[f, x, r, s] ->
+    -- an indirect let, since the binding is a call: its number names the
+    -- section after it, the only one in this lambda
+    TLet (Indirect 1) r BX (TApp (FVar f) [x])
+      -- the result is bound and yielded as a variable, since a primitive
+      -- in tail position yields its slots (VArgV), which the machine never
+      -- applies to the arguments of an over-applied call:
+      -- (specialize f x) y
+      . TLetD s BX (TPrm SPEC [r])
+      $ TVar s
+
+-- specialize.boundary f x: f x, a call the specializer keeps as a call;
+-- the optimizer inlines it away everywhere else
+specialize'boundary :: SuperNormal ref Symbol
+specialize'boundary = binop0 0 $ \[f, x] -> TApp (FVar f) [x]
+
+runtime'ir :: SuperNormal ref Symbol
+runtime'ir = unop RTIR
+
 code'missing :: SuperNormal ref Symbol
 code'missing = unop MISS
 
@@ -865,6 +890,9 @@ builtinLookup =
         ("Debug.watch", (Tracked, watch)),
         ("Debug.trace", (Tracked, gen'trace)),
         ("Debug.toText", (Tracked, debug'text)),
+        ("specialize", (Untracked, specialize)),
+        ("specialize.boundary", (Untracked, specialize'boundary)),
+        ("runtime.ir", (Tracked, runtime'ir)),
         ("unsafe.coerceAbilities", (Untracked, poly'coerce)),
         ("Char.toNat", (Untracked, coerceType NatTag)),
         ("Char.fromNat", (Untracked, coerceType CharTag)),

@@ -150,6 +150,7 @@ library core
       Unison.Runtime.ANF.Serialize.CodeV4
       Unison.Runtime.ANF.Serialize.Tags
       Unison.Runtime.ANF.Serialize.ValueV5
+      Unison.Runtime.ANF.Specialize
       Unison.Runtime.Array
       Unison.Runtime.Builtin
       Unison.Runtime.Builtin.Decls
@@ -401,6 +402,7 @@ test-suite runtime-tests
       Unison.Test.Runtime.MCode.Wide
       Unison.Test.Runtime.Process
       Unison.Test.Runtime.Signal
+      Unison.Test.Runtime.Specialize
       Unison.Test.Runtime.TypeNumbers
       Unison.Test.UnisonSources
       Unison.Test.Util.Text

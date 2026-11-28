@@ -144,6 +144,7 @@ module Unison.Runtime.Stack
     frameView,
     scount,
     closureTermRefs,
+    contTermRefs,
     dumpAP,
     dumpFP,
     alloc,
