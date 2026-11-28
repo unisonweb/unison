@@ -33,8 +33,8 @@ import Unison.Runtime.Pattern (builtinDataSpec, splitPatterns)
 import Unison.Runtime.Referenced (Referenced (..))
 import Unison.Runtime.Stack (Val, pattern NatVal)
 import Unison.Term (unannotate)
-import Unison.Type qualified as Type
 import Unison.Test.Common (tm)
+import Unison.Type qualified as Type
 
 -- | A fresh cache with each term loaded under its reference (and the
 -- lambdas lifted out of it under references of their own).

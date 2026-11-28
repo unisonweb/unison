@@ -492,52 +492,53 @@ specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
             either (\(Escape _ why) -> Left ("an escape from a fused handler: " ++ why)) id
               <$> Control.Exception.try @Escape
                 ( Right <$> do
-                    newIORef M.empty >>= \loopsRef -> newIORef M.empty >>= \valuedRef -> flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty M.empty 0 M.empty M.empty M.empty S.empty valuedRef M.empty M.empty S.empty 1 loopsRef) do
-                      argSyms <- traverse freshNamed (take (length args) vs)
-                      restSyms <- traverse freshNamed (drop (length args) vs)
-                      let restMems = drop (length args) ccs
-                          binds =
-                            zip vs (zipWith (\v s -> Known v (Just s)) args argSyms)
-                              ++ zip (drop (length args) vs) (zipWith Dyn restSyms restMems)
-                          -- the entry is the first call being unfolded
-                          -- (its number is 0)
-                          e0 = newEnv (localBinds r locals ++ binds) False 0 [(Fn r i, map (keyOf . snd) binds, [], UnfoldId 0)]
-                      body0 <-
-                        unfolding (UnfoldId 0) (partialEval env lim e0 body KTail) $
-                          residualCall env lim (Fn r i) (map snd binds) KTail
-                      consts <- gets (reverse . sConsts)
-                      fns0 <- gets sFns
-                      let constSyms = argSyms ++ map fst consts
-                          -- a join point uses variables of where it is called: they
-                          -- become parameters, before inlining: 'freeNeeds' takes
-                          -- every name to be bound once, and two copies of a function
-                          -- bind the same names
-                          free = freeNeeds (S.fromList constSyms) fns0
-                          mems =
-                            M.fromList $
-                              zip restSyms restMems
-                                ++ binderMems body0
-                                ++ concat [zip ps ms ++ binderMems bd | (_, Lambda ms (ABTN.TAbss ps bd)) <- fns0]
-                          memOfVar x = M.findWithDefault BX x mems
-                          fns1 =
-                            [ (f, Lambda (map memOfVar xs ++ ms) (ABTN.TAbss (xs ++ ps) (threadConsts free bd)))
-                            | (f, Lambda ms (ABTN.TAbss ps bd)) <- fns0,
-                              let xs = M.findWithDefault [] f free
-                            ]
-                      joins <- gets sJoinFns
-                      let (fns, body') = inlineFns joins fns1 (threadConsts free body0)
-                      let needs = constNeeds constSyms fns
-                          thread = renumberLets . threadConsts needs
-                          entry =
-                            Lambda
-                              (map (const BX) constSyms ++ restMems)
-                              (ABTN.TAbss (constSyms ++ restSyms) (thread body'))
-                          fns' =
-                            [ (f, Lambda (map (const BX) cs ++ ms) (ABTN.TAbss (cs ++ ps) (thread bd)))
-                            | (f, Lambda ms (ABTN.TAbss ps bd)) <- fns,
-                              let cs = M.findWithDefault [] f needs
-                            ]
-                      pure (Rec fns' entry, map snd consts)
+                    newIORef M.empty >>= \loopsRef ->
+                      newIORef M.empty >>= \valuedRef -> flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty M.empty 0 M.empty M.empty M.empty S.empty valuedRef M.empty M.empty S.empty 1 loopsRef) do
+                        argSyms <- traverse freshNamed (take (length args) vs)
+                        restSyms <- traverse freshNamed (drop (length args) vs)
+                        let restMems = drop (length args) ccs
+                            binds =
+                              zip vs (zipWith (\v s -> Known v (Just s)) args argSyms)
+                                ++ zip (drop (length args) vs) (zipWith Dyn restSyms restMems)
+                            -- the entry is the first call being unfolded
+                            -- (its number is 0)
+                            e0 = newEnv (localBinds r locals ++ binds) False 0 [(Fn r i, map (keyOf . snd) binds, [], UnfoldId 0)]
+                        body0 <-
+                          unfolding (UnfoldId 0) (partialEval env lim e0 body KTail) $
+                            residualCall env lim (Fn r i) (map snd binds) KTail
+                        consts <- gets (reverse . sConsts)
+                        fns0 <- gets sFns
+                        let constSyms = argSyms ++ map fst consts
+                            -- a join point uses variables of where it is called: they
+                            -- become parameters, before inlining: 'freeNeeds' takes
+                            -- every name to be bound once, and two copies of a function
+                            -- bind the same names
+                            free = freeNeeds (S.fromList constSyms) fns0
+                            mems =
+                              M.fromList $
+                                zip restSyms restMems
+                                  ++ binderMems body0
+                                  ++ concat [zip ps ms ++ binderMems bd | (_, Lambda ms (ABTN.TAbss ps bd)) <- fns0]
+                            memOfVar x = M.findWithDefault BX x mems
+                            fns1 =
+                              [ (f, Lambda (map memOfVar xs ++ ms) (ABTN.TAbss (xs ++ ps) (threadConsts free bd)))
+                              | (f, Lambda ms (ABTN.TAbss ps bd)) <- fns0,
+                                let xs = M.findWithDefault [] f free
+                              ]
+                        joins <- gets sJoinFns
+                        let (fns, body') = inlineFns joins fns1 (threadConsts free body0)
+                        let needs = constNeeds constSyms fns
+                            thread = renumberLets . threadConsts needs
+                            entry =
+                              Lambda
+                                (map (const BX) constSyms ++ restMems)
+                                (ABTN.TAbss (constSyms ++ restSyms) (thread body'))
+                            fns' =
+                              [ (f, Lambda (map (const BX) cs ++ ms) (ABTN.TAbss (cs ++ ps) (thread bd)))
+                              | (f, Lambda ms (ABTN.TAbss ps bd)) <- fns,
+                                let cs = M.findWithDefault [] f needs
+                              ]
+                        pure (Rec fns' entry, map snd consts)
                 )
 
 -- | A lambda of a group, with the group's local functions by variable.
